@@ -1,18 +1,21 @@
 import express from 'express';
 import pg from 'pg';
 import cors from 'cors';
+import dotenv from 'dotenv'; // 🚀 Cargamos dotenv
+
+// Configurar variables de entorno
+dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Conexión a PostgreSQL
+// Conexión Inteligente a PostgreSQL (Soporta Local y Nube con SSL)
 const pool = new pg.Pool({
-  host: 'localhost',
-  port: 5432,
-  user: 'postgres',
-  password: 'HOLA',
-  database: 'venta-autos',
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('localhost') 
+    ? false 
+    : { rejectUnauthorized: false } // 🔥 Obligatorio para Neon en producción
 });
 
 // Test de conexión y auto-actualización de la base de datos
@@ -20,7 +23,7 @@ pool.query('SELECT NOW()', async (err, res) => {
   if (err) {
     console.error('❌ Error crítico al conectar a PostgreSQL:', err.message);
   } else {
-    console.log('✅ PostgreSQL conectado exitosamente.');
+    console.log('✅ PostgreSQL conectado exitosamente desde el entorno actual.');
     try {
       // 🚀 MAGIA: Se agrega la columna de compras automáticamente si no existía
       await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS compras_totales INTEGER DEFAULT 0');
@@ -119,7 +122,6 @@ app.post('/api/auth/registro', async (req, res) => {
   }
 });
 
-// Obtener usuarios + su conteo de compras
 app.get('/api/usuarios', async (req, res) => {
   try {
     const resultado = await pool.query('SELECT id, nombre, email, rol, telefono, compras_totales FROM usuarios ORDER BY id DESC');
@@ -129,7 +131,6 @@ app.get('/api/usuarios', async (req, res) => {
   }
 });
 
-// Registrar un Admin desde Cero
 app.post('/api/usuarios/admin', async (req, res) => {
   const { nombre, email, password } = req.body;
   try {
@@ -146,12 +147,10 @@ app.post('/api/usuarios/admin', async (req, res) => {
   }
 });
 
-// 🚀 NUEVO: Endpoint para ACTUALIZAR usuarios (Nombre y Rol)
 app.put('/api/usuarios/:id', async (req, res) => {
   const { id } = req.params;
   const { nombre, rol } = req.body;
   try {
-    // Si no manda nada para actualizar
     if (!nombre && !rol) {
       return res.status(400).json({ error: 'No se enviaron datos para actualizar' });
     }
@@ -171,14 +170,10 @@ app.put('/api/usuarios/:id', async (req, res) => {
   }
 });
 
-// 🚀 NUEVO: Endpoint para ELIMINAR usuarios (Revocar cuentas)
 app.delete('/api/usuarios/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    // Primero, por seguridad, borrar o desligar sus apartados/compras si existen (opcional, dependiendo de tu lógica de negocio)
     await pool.query('DELETE FROM apartados WHERE usuario_id = $1', [id]);
-    
-    // Luego borrar al usuario
     const resultado = await pool.query('DELETE FROM usuarios WHERE id = $1 RETURNING id', [id]);
     
     if (resultado.rows.length === 0) {
@@ -235,13 +230,11 @@ app.delete('/api/apartados/:id', async (req, res) => {
   }
 });
 
-// Liquidar y Actualizar historial del usuario
 app.post('/api/apartados/pagar', async (req, res) => {
   const { usuario_id, apartados_ids } = req.body;
   try {
     await pool.query('BEGIN');
     
-    // Restamos el inventario
     for (const id_apartado of apartados_ids) {
       const apart = await pool.query('SELECT vehiculo_id FROM apartados WHERE id = $1', [id_apartado]);
       if (apart.rows.length > 0) {
@@ -249,10 +242,8 @@ app.post('/api/apartados/pagar', async (req, res) => {
       }
     }
 
-    // 🚀 MAGIA: Sumamos la cantidad de vehículos al historial del cliente
     await pool.query('UPDATE usuarios SET compras_totales = compras_totales + $1 WHERE id = $2', [apartados_ids.length, usuario_id]);
 
-    // Limpiamos el carrito
     const placeholders = apartados_ids.map((_, i) => `$${i + 2}`).join(',');
     await pool.query(`DELETE FROM apartados WHERE usuario_id = $1 AND id IN (${placeholders})`, [usuario_id, ...apartados_ids]);
 
@@ -264,6 +255,8 @@ app.post('/api/apartados/pagar', async (req, res) => {
   }
 });
 
-app.listen(3000, () => {
-  console.log('🚀 Servidor conector de PostgreSQL corriendo en http://localhost:3000');
+// Puerto dinámico asignado por la nube o 3000 local
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor corriendo exitosamente en el puerto ${PORT}`);
 });
