@@ -1,7 +1,7 @@
 import express from 'express';
 import pg from 'pg';
 import cors from 'cors';
-import dotenv from 'dotenv'; // 🚀 Cargamos dotenv
+import dotenv from 'dotenv';
 
 // Configurar variables de entorno
 dotenv.config();
@@ -25,12 +25,44 @@ pool.query('SELECT NOW()', async (err, res) => {
   } else {
     console.log('✅ PostgreSQL conectado exitosamente desde el entorno actual.');
     try {
-      // 🚀 MAGIA: Se agrega la columna de compras automáticamente si no existía
       await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS compras_totales INTEGER DEFAULT 0');
       console.log('✅ Base de datos actualizada para soportar historial de compras.');
     } catch (e) {
       console.log('Nota DB:', e.message);
     }
+  }
+});
+
+// ==========================================================================
+// 📊 ENDPOINT ESPECIAL: METRICAS DEL DASHBOARD (¡NUEVO!)
+// ==========================================================================
+app.get('/api/admin/metricas', async (req, res) => {
+  try {
+    // 1. Obtener Stock Total y Valor total del Inventario en dinero
+    const inventarioQuery = await pool.query(
+      'SELECT COALESCE(SUM(stock), 0) AS stock_total, COALESCE(SUM(precio * stock), 0) AS valor_inventario FROM vehiculos'
+    );
+    
+    // 2. Obtener Unidades Totales Entregadas (suma de compras_totales de los clientes)
+    const entregasQuery = await pool.query(
+      'SELECT COALESCE(SUM(compras_totales), 0) AS unidades_entregadas FROM usuarios'
+    );
+
+    const stockTotal = parseInt(inventarioQuery.rows[0].stock_total);
+    const valorInventario = parseFloat(inventarioQuery.rows[0].valor_inventario);
+    const unidadesEntregadas = parseInt(entregasQuery.rows[0].unidades_entregadas);
+    
+    // 3. Ingresos brutos estimados (Multiplicación representativa basada en unidades entregadas por un precio promedio de gama alta)
+    const ingresosEstimados = unidadesEntregadas * 135000; 
+
+    res.json({
+      ingresosEstimados,
+      unidadesEntregadas,
+      valorInventario,
+      stockTotal
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -134,6 +166,11 @@ app.get('/api/usuarios', async (req, res) => {
 app.post('/api/usuarios/admin', async (req, res) => {
   const { nombre, email, password } = req.body;
   try {
+    // 🛡️ CONTROL DE SEGURIDAD EXCLUSIVO (¡NUEVO!)
+    if (!email.toLowerCase().endsWith('@autopremium.com')) {
+      return res.status(400).json({ error: 'Acceso Denegado. Los administradores deben usar obligatoriamente el correo institucional (@autopremium.com).' });
+    }
+
     const existe = await pool.query('SELECT * FROM usuarios WHERE email = $1', [email]);
     if (existe.rows.length > 0) return res.status(400).json({ error: 'Ya existe una cuenta con este correo.' });
 

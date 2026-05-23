@@ -8,10 +8,8 @@ function AdminCarCard({ auto, onDelete, onSave }) {
   const [modelo, setModelo] = useState(auto.modelo || '');
   const [precio, setPrecio] = useState(auto.precio || '');
   const [stock, setStock] = useState(auto.stock || 0);
-  // NUEVO ESTADO: Categoría
   const [categoria, setCategoria] = useState(auto.categoria || 'gasolina');
 
-  // NUEVA CONDICIÓN: Verificar si la categoría fue modificada
   const isModified = 
     marca !== auto.marca || 
     modelo !== auto.modelo || 
@@ -19,7 +17,6 @@ function AdminCarCard({ auto, onDelete, onSave }) {
     Number(stock) !== Number(auto.stock) ||
     categoria !== auto.categoria;
 
-  // NUEVO GUARDADO: Incluir la categoría en la actualización
   const handleSave = () => onSave(auto.id, { 
     marca, 
     modelo, 
@@ -58,7 +55,6 @@ function AdminCarCard({ auto, onDelete, onSave }) {
             <input type="number" value={stock} onChange={(e) => setStock(e.target.value)} className={`w-full bg-black/50 border focus:border-zinc-500 rounded-lg p-2 text-xs text-white focus:outline-none font-mono font-bold transition ${Number(stock) <= 0 ? 'border-red-900/50 text-red-500' : 'border-zinc-800'}`} />
           </div>
           
-          {/* NUEVO SELECTOR DE CATEGORÍA */}
           <div className="col-span-2">
             <label className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold block mb-1">Categoría Vehicular</label>
             <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="w-full bg-black/50 border border-zinc-800 focus:border-zinc-500 rounded-lg p-2 text-xs text-white focus:outline-none uppercase font-bold transition">
@@ -81,12 +77,13 @@ function AdminCarCard({ auto, onDelete, onSave }) {
 // ==========================================
 // COMPONENTE: TARJETA DE USUARIO / STAFF
 // ==========================================
-function AdminUserCard({ admin, onDelete, onSave, usuarioActualId }) {
+function AdminUserCard({ admin, onDelete, onSave, usuarioActualId, currentUserRole }) {
   const [editando, setEditando] = useState(false);
   const [nombre, setNombre] = useState(admin.nombre);
   const [rol, setRol] = useState(admin.rol || 'admin');
 
   const esUsuarioActual = admin.id === usuarioActualId;
+  const esSuperAdmin = currentUserRole === 'superadmin';
 
   const handleSave = () => {
     onSave(admin.id, { nombre, rol });
@@ -107,7 +104,12 @@ function AdminUserCard({ admin, onDelete, onSave, usuarioActualId }) {
             <p className="text-[11px] text-zinc-500 font-mono tracking-widest mt-2 truncate">{admin.email}</p>
           </div>
           <div className="flex gap-2 w-full mt-2">
-            <button onClick={() => setEditando(true)} className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white text-[10px] font-black uppercase tracking-widest py-2 rounded-lg transition">Privilegios</button>
+            {/* Solo el Super Admin puede modificar privilegios de otros */}
+            {esSuperAdmin && (
+              <button onClick={() => setEditando(true)} className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white text-[10px] font-black uppercase tracking-widest py-2 rounded-lg transition">Privilegios</button>
+            )}
+            
+            {/* Ambos pueden revocar/degradar (siempre y cuando no sea a sí mismos) */}
             {!esUsuarioActual && (
               <button onClick={() => onDelete(admin.id)} className="flex-1 border border-red-900/40 text-red-500 hover:bg-red-950/40 hover:text-red-400 text-[10px] font-black uppercase tracking-widest py-2 rounded-lg transition">Revocar</button>
             )}
@@ -225,8 +227,8 @@ export default function App() {
     try {
       setLoadingDatos(true);
       const [resVehiculos, resUsuarios] = await Promise.all([
-        fetch('http://localhost:3000/api/vehiculos').catch(() => null),
-        fetch('http://localhost:3000/api/usuarios').catch(() => null) 
+        fetch(`${API_URL}/api/vehiculos`).catch(() => null),
+        fetch(`${API_URL}/api/usuarios`).catch(() => null) 
       ]);
 
       if (resVehiculos && resVehiculos.ok) setVehiculos(await resVehiculos.json());
@@ -258,7 +260,7 @@ export default function App() {
     specsInput.forEach(s => { if (s.clave.trim()) especificaciones[s.clave.trim()] = s.valor.trim(); });
     const payload = { marca, modelo, anio: Number(anio), precio: Number(precio), categoria, imagen: imagen || 'https://images.unsplash.com/photo-1617788138017-80ad40651399', descripcion, stock: Number(stock), especificaciones };
     try {
-      const response = await fetch('http://localhost:3000/api/vehiculos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const response = await fetch(`${API_URL}/api/vehiculos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (response.ok) {
         mostrarMensaje('exito', '🎉 ¡Vehículo añadido!');
         setMarca(''); setModelo(''); setPrecio(''); setImagen(''); setDescripcion(''); setStock(1);
@@ -269,7 +271,7 @@ export default function App() {
 
   const handleSaveVehiculo = async (id, datos) => {
     try {
-      const response = await fetch(`http://localhost:3000/api/vehiculos/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
+      const response = await fetch(`${API_URL}/api/vehiculos/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
       if (response.ok) { mostrarMensaje('exito', '✓ Registro actualizado.'); cargarDatos(); } 
       else { const data = await response.json(); mostrarMensaje('error', data.error); }
     } catch (err) { mostrarMensaje('error', 'Error de conexión.'); }
@@ -278,7 +280,7 @@ export default function App() {
   const eliminarVehiculo = async (id) => {
     if (!window.confirm('¿Eliminar esta unidad del inventario central?')) return;
     try {
-      const response = await fetch(`http://localhost:3000/api/vehiculos/${id}`, { method: 'DELETE' });
+      const response = await fetch(`${API_URL}/api/vehiculos/${id}`, { method: 'DELETE' });
       if (response.ok) { mostrarMensaje('exito', 'Unidad dada de baja.'); cargarDatos(); } 
       else { mostrarMensaje('error', 'No se pudo eliminar.'); }
     } catch (err) { mostrarMensaje('error', 'Error de red.'); }
@@ -294,10 +296,11 @@ export default function App() {
     const correoFinal = `${adminEmailPrefix.trim().toLowerCase()}@autopremium.com`;
 
     try {
-      const response = await fetch('http://localhost:3000/api/auth/registro', {
+      // CORRECCIÓN DE ENDPOINT PARA STAFF
+      const response = await fetch(`${API_URL}/api/usuarios/admin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre: adminNombre, email: correoFinal, password: adminPass, rol: 'admin' })
+        body: JSON.stringify({ nombre: adminNombre, email: correoFinal, password: adminPass })
       });
       if (response.ok) {
         mostrarMensaje('exito', `⚡ Cuenta directiva para [${adminNombre}] creada exitosamente.`);
@@ -311,28 +314,33 @@ export default function App() {
 
   const handleSaveUsuario = async (id, datos) => {
     try {
-      const response = await fetch(`http://localhost:3000/api/usuarios/${id}`, {
+      const response = await fetch(`${API_URL}/api/usuarios/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(datos)
       });
-      if (response.ok) { mostrarMensaje('exito', 'Privilegios actualizados.'); cargarDatos(); } 
-      else { const data = await response.json(); mostrarMensaje('error', data.error || 'Error al actualizar privilegios.'); }
+      if (response.ok) { 
+        mostrarMensaje('exito', 'Privilegios actualizados.'); 
+        cargarDatos(); 
+      } else { 
+        const data = await response.json(); 
+        mostrarMensaje('error', data.error || 'Error al actualizar privilegios.'); 
+      }
     } catch (err) { mostrarMensaje('error', 'Error de conexión.'); }
   };
 
   const eliminarUsuario = async (id) => {
     if (!window.confirm('¿Estás seguro de que deseas REVOCAR EL ACCESO a este usuario permanentemente?')) return;
     try {
-      const response = await fetch(`http://localhost:3000/api/usuarios/${id}`, { method: 'DELETE' });
+      // Nota: Si en tu backend DELETE elimina la cuenta, está perfecto.
+      // Si en tu backend quieres que solo le cambie el rol a 'cliente', tendrás que usar un PUT aquí.
+      const response = await fetch(`${API_URL}/api/usuarios/${id}`, { method: 'DELETE' });
       if (response.ok) { mostrarMensaje('exito', 'Cuenta revocada exitosamente.'); cargarDatos(); } 
       else { const data = await response.json(); mostrarMensaje('error', data.error || 'Error al revocar cuenta.'); }
     } catch (err) { mostrarMensaje('error', 'Error de red.'); }
   };
 
-  // ------------------------------
-  // FILTROS INTELIGENTES 🚀
-  // ------------------------------
+  // FILTROS INTELIGENTES
   const vehiculosFiltrados = vehiculos.filter(car => car.marca?.toLowerCase().includes(busqueda.toLowerCase()) || car.modelo?.toLowerCase().includes(busqueda.toLowerCase()));
   const clientesFiltrados = usuariosDb.filter(u => u.rol !== 'admin' && u.rol !== 'superadmin' && !u.email?.toLowerCase().endsWith('@autopremium.com'));
   const adminsFiltrados = usuariosDb.filter(u => u.rol === 'admin' || u.rol === 'superadmin' || u.email?.toLowerCase().endsWith('@autopremium.com'));
@@ -397,7 +405,7 @@ export default function App() {
           <div className="flex items-center gap-4">
             <div className="hidden md:block text-right">
               <p className="text-xs font-bold text-white uppercase">{adminUser.nombre}</p>
-              <p className="text-[10px] text-zinc-500 font-mono tracking-widest uppercase">ID: #{adminUser.id}</p>
+              <p className="text-[10px] text-zinc-500 font-mono tracking-widest uppercase">ID: #{adminUser.id} | {adminUser.rol}</p>
             </div>
             <button onClick={logoutAdmin} className="border border-zinc-800 hover:border-red-900 hover:bg-red-950/30 hover:text-red-400 text-zinc-400 text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition duration-300">
               Bloquear Sesión
@@ -562,7 +570,6 @@ export default function App() {
                       <input required type="text" value={adminNombre} onChange={(e) => setAdminNombre(e.target.value)} className="w-full bg-black border border-zinc-900 rounded-xl p-3 text-sm focus:outline-none" />
                     </div>
                     
-                    {/* INPUT DE CORREO BLOQUEADO */}
                     <div>
                       <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold block mb-1">Correo Corporativo</label>
                       <div className="flex">
@@ -599,6 +606,7 @@ export default function App() {
                         onSave={handleSaveUsuario} 
                         onDelete={eliminarUsuario}
                         usuarioActualId={adminUser.id}
+                        currentUserRole={adminUser.rol} // <--- PASAMOS EL ROL AQUÍ
                       />
                     ))}
                   </div>
