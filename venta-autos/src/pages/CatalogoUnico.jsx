@@ -25,13 +25,12 @@ export default function CatalogoUnico({ setModalAuth, usuario, carritoCount = 0,
   const hibridoRef = useRef(null);
   const electricoRef = useRef(null);
   const superdeportivosRef = useRef(null);
-  const mapaRef = useRef(null); // 🚀 REFERENCIA PARA EL MAPA
+  const mapaRef = useRef(null); 
 
   useEffect(() => {
     const fetchVehiculos = async () => {
       try {
         setLoading(true);
-        // 🚀 SE REEMPLAZÓ LOCALHOST AQUÍ
         const response = await fetch(`${API_URL}/api/vehiculos`);
         if (!response.ok) throw new Error('No se pudo establecer conexión con el backend.');
         const data = await response.json();
@@ -100,7 +99,6 @@ export default function CatalogoUnico({ setModalAuth, usuario, carritoCount = 0,
     }
   };
 
-  // Bajar suavemente hacia el mapa
   const scrollToMap = () => {
     setMobileMenuOpen(false); 
     if (mapaRef.current) {
@@ -111,16 +109,16 @@ export default function CatalogoUnico({ setModalAuth, usuario, carritoCount = 0,
   return (
     <div className="min-h-screen bg-black transition-colors duration-700 text-white flex flex-col relative">
       
-      {/* 🚀 NAV CORREGIDO: z-[999] para que nada lo tape */}
-      <nav className={`fixed top-0 left-0 w-full border-b z-[999] transition-all duration-700 px-6 md:px-8 py-4 flex justify-between items-center ${getNavbarStyles()}`}>
+      {/* 🚀 NAV CORREGIDO DEFINITIVAMENTE: sticky en lugar de fixed y z-[9999] */}
+      <nav className={`sticky top-0 w-full border-b z-[9999] transition-all duration-700 px-6 md:px-8 py-4 flex justify-between items-center ${getNavbarStyles()}`}>
         
-        <span className="text-xl font-black tracking-widest cursor-pointer relative z-[1000]" onClick={() => navigate('/')}>
+        <span className="text-xl font-black tracking-widest cursor-pointer relative z-[10000]" onClick={() => navigate('/')}>
           AUTOPREMIUM <span className={`text-xs font-bold ${navTheme === 'red' ? 'text-red-600' : navTheme === 'neon' ? 'text-[#00ffcc]' : navTheme === 'teal' ? 'text-cyan-500' : 'text-zinc-500'}`}>CDMX</span>
         </span>
 
-        {/* 🚀 BOTÓN HAMBURGUESA CORREGIDO: z-[1000] y relative para estar siempre al frente */}
+        {/* 🚀 BOTÓN HAMBURGUESA: Prioridad absoluta para que reciba los clics */}
         <button 
-          className="md:hidden text-white text-3xl relative z-[1000] focus:outline-none p-1"
+          className="md:hidden text-white text-3xl relative z-[10000] focus:outline-none p-1 cursor-pointer"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
         >
           {mobileMenuOpen ? '✕' : '☰'}
@@ -129,7 +127,7 @@ export default function CatalogoUnico({ setModalAuth, usuario, carritoCount = 0,
         {/* =========================================================
             MENÚ ESCRITORIO
             ========================================================= */}
-        <div className="hidden md:flex gap-6 items-center text-sm font-bold tracking-wider uppercase">
+        <div className="hidden md:flex gap-6 items-center text-sm font-bold tracking-wider uppercase relative z-[10000]">
           
           <button onClick={() => navigate('/')} className={`${getNavbarButtonClass()} transition-colors duration-500`}>
             Inicio
@@ -157,7 +155,7 @@ export default function CatalogoUnico({ setModalAuth, usuario, carritoCount = 0,
             </button>
             
             {showCartPreview && (
-              <div className="absolute top-full right-0 mt-6 w-72 bg-zinc-950 border border-zinc-800 rounded-xl p-5 flex flex-col gap-4 z-[1000] shadow-2xl">
+              <div className="absolute top-full right-0 mt-6 w-72 bg-zinc-950 border border-zinc-800 rounded-xl p-5 flex flex-col gap-4 shadow-2xl">
                 <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
                   <h4 className="font-bold tracking-widest text-white">TU CARRITO</h4>
                   <button onClick={() => setShowCartPreview(false)} className="text-zinc-500 hover:text-white text-lg">✕</button>
@@ -190,7 +188,7 @@ export default function CatalogoUnico({ setModalAuth, usuario, carritoCount = 0,
           </div>
 
           {usuario ? (
-            <div className="flex items-center gap-4 pl-4 border-l border-zinc-800/50 relative z-[1000]">
+            <div className="flex items-center gap-4 pl-4 border-l border-zinc-800/50">
               <div className="flex flex-col text-right">
                 <span className="text-[10px] opacity-50 leading-none text-white">Conectado</span>
                 <span className="text-xs font-bold tracking-wider text-white">{usuario.nombre || 'Usuario'}</span>
@@ -202,7 +200,7 @@ export default function CatalogoUnico({ setModalAuth, usuario, carritoCount = 0,
           ) : (
             <button 
               onClick={() => setModalAuth({ abierto: true, modoRegistro: false })} 
-              className={`px-5 py-2 rounded transition-colors duration-500 shadow-lg relative z-[1000] ${getLoginButtonClass()}`}
+              className={`px-5 py-2 rounded transition-colors duration-500 shadow-lg ${getLoginButtonClass()}`}
             >
               Iniciar Sesión
             </button>
@@ -210,7 +208,7 @@ export default function CatalogoUnico({ setModalAuth, usuario, carritoCount = 0,
         </div>
 
         {/* =========================================================
-            MENÚ MÓVIL CORREGIDO
+            MENÚ MÓVIL
             ========================================================= */}
         <div className={`absolute top-full left-0 w-full bg-black/95 backdrop-blur-xl border-b border-zinc-800 flex flex-col transition-all duration-300 md:hidden overflow-hidden shadow-2xl z-[990] ${mobileMenuOpen ? 'max-h-[500px] opacity-100 p-6 gap-4' : 'max-h-0 opacity-0 p-0 gap-0 border-transparent'}`}>
           
