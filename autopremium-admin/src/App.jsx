@@ -85,6 +85,19 @@ function AdminUserCard({ admin, onDelete, onSave, usuarioActualId, currentUserRo
   const esUsuarioActual = admin.id === usuarioActualId;
   const esSuperAdmin = currentUserRole === 'superadmin';
 
+  // Helpers visuales para el rol
+  const getBadgeColor = () => {
+    if (admin.rol === 'superadmin') return 'bg-purple-500/10 text-purple-400 border border-purple-900';
+    if (admin.rol === 'admin_restringido') return 'bg-amber-500/10 text-amber-400 border border-amber-900';
+    return 'bg-emerald-500/10 text-emerald-400 border border-emerald-950';
+  };
+  
+  const getRoleName = () => {
+    if (admin.rol === 'superadmin') return 'Super Admin';
+    if (admin.rol === 'admin_restringido') return 'Admin (Clientes)';
+    return 'Admin';
+  };
+
   const handleSave = () => {
     onSave(admin.id, { nombre, rol });
     setEditando(false);
@@ -97,21 +110,22 @@ function AdminUserCard({ admin, onDelete, onSave, usuarioActualId, currentUserRo
           <div className="w-full">
             <div className="flex justify-between items-start w-full">
               <p className="text-sm font-black uppercase text-white truncate pr-2">{admin.nombre}</p>
-              <span className={`text-[9px] font-black tracking-widest uppercase px-2 py-1 rounded-md ${admin.rol === 'superadmin' ? 'bg-purple-500/10 text-purple-400 border border-purple-900' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-950'}`}>
-                {admin.rol === 'superadmin' ? 'Super Admin' : 'Admin'}
+              <span className={`text-[9px] font-black tracking-widest uppercase px-2 py-1 rounded-md ${getBadgeColor()}`}>
+                {getRoleName()}
               </span>
             </div>
             <p className="text-[11px] text-zinc-500 font-mono tracking-widest mt-2 truncate">{admin.email}</p>
           </div>
+          
+          {/* BOTONERA: Solo Super Admin puede modificar y revocar a otros */}
           <div className="flex gap-2 w-full mt-2">
-            {/* Solo el Super Admin puede modificar privilegios de otros */}
             {esSuperAdmin && (
-              <button onClick={() => setEditando(true)} className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white text-[10px] font-black uppercase tracking-widest py-2 rounded-lg transition">Privilegios</button>
-            )}
-            
-            {/* Ambos pueden revocar/degradar (siempre y cuando no sea a sí mismos) */}
-            {!esUsuarioActual && (
-              <button onClick={() => onDelete(admin.id)} className="flex-1 border border-red-900/40 text-red-500 hover:bg-red-950/40 hover:text-red-400 text-[10px] font-black uppercase tracking-widest py-2 rounded-lg transition">Revocar</button>
+              <>
+                <button onClick={() => setEditando(true)} className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white text-[10px] font-black uppercase tracking-widest py-2 rounded-lg transition">Privilegios</button>
+                {!esUsuarioActual && (
+                  <button onClick={() => onDelete(admin.id)} className="flex-1 border border-red-900/40 text-red-500 hover:bg-red-950/40 hover:text-red-400 text-[10px] font-black uppercase tracking-widest py-2 rounded-lg transition">Revocar</button>
+                )}
+              </>
             )}
           </div>
         </>
@@ -124,8 +138,9 @@ function AdminUserCard({ admin, onDelete, onSave, usuarioActualId, currentUserRo
           <div>
             <label className="text-[9px] uppercase tracking-widest text-zinc-500 font-bold block mb-1">Nivel de Acceso</label>
             <select value={rol} onChange={(e) => setRol(e.target.value)} className="w-full bg-black border border-zinc-800 rounded p-2 text-xs text-white focus:outline-none uppercase font-bold">
-              <option value="admin">Administrador (Estándar)</option>
               <option value="superadmin">Super Admin (Control Total)</option>
+              <option value="admin">Administrador (Estándar)</option>
+              <option value="admin_restringido">Admin (Solo Degradar Clientes)</option>
               <option value="cliente">Degradar a Cliente</option>
             </select>
           </div>
@@ -201,7 +216,9 @@ export default function App() {
 
       const usuarioLogueado = data.usuario || data.user || data;
 
-      const esAdminReal = usuarioLogueado.rol === 'admin' || usuarioLogueado.rol === 'superadmin' || usuarioLogueado.email.endsWith('@autopremium.com');
+      // VALIDACIÓN INCLUYENDO EL NUEVO ROL
+      const rolesPermitidos = ['admin', 'superadmin', 'admin_restringido'];
+      const esAdminReal = rolesPermitidos.includes(usuarioLogueado.rol) || usuarioLogueado.email.endsWith('@autopremium.com');
 
       if (!esAdminReal) {
         throw new Error('ACCESO DENEGADO. Nivel de autorización insuficiente.');
@@ -287,7 +304,7 @@ export default function App() {
   };
 
   // ------------------------------
-  // CRUD USUARIOS (STAFF)
+  // CRUD USUARIOS Y CLIENTES
   // ------------------------------
   const registrarNuevoAdmin = async (e) => {
     e.preventDefault();
@@ -296,7 +313,6 @@ export default function App() {
     const correoFinal = `${adminEmailPrefix.trim().toLowerCase()}@autopremium.com`;
 
     try {
-      // CORRECCIÓN DE ENDPOINT PARA STAFF
       const response = await fetch(`${API_URL}/api/usuarios/admin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -329,27 +345,55 @@ export default function App() {
     } catch (err) { mostrarMensaje('error', 'Error de conexión.'); }
   };
 
+  // Para revocar cuentas de administradores
   const eliminarUsuario = async (id) => {
     if (!window.confirm('¿Estás seguro de que deseas REVOCAR EL ACCESO a este usuario permanentemente?')) return;
     try {
-      // Nota: Si en tu backend DELETE elimina la cuenta, está perfecto.
-      // Si en tu backend quieres que solo le cambie el rol a 'cliente', tendrás que usar un PUT aquí.
       const response = await fetch(`${API_URL}/api/usuarios/${id}`, { method: 'DELETE' });
       if (response.ok) { mostrarMensaje('exito', 'Cuenta revocada exitosamente.'); cargarDatos(); } 
       else { const data = await response.json(); mostrarMensaje('error', data.error || 'Error al revocar cuenta.'); }
     } catch (err) { mostrarMensaje('error', 'Error de red.'); }
   };
 
-  // FILTROS INTELIGENTES
+  // NUEVA FUNCIÓN: Degradar Clientes con condición de cero compras
+  const degradarCliente = async (id, comprasTotales) => {
+    if (Number(comprasTotales) > 0) {
+      return mostrarMensaje('error', '⛔ Acción denegada: No se puede degradar a un cliente que ya tiene compras.');
+    }
+    
+    if (!window.confirm('¿Estás seguro de que deseas degradar/eliminar a este cliente?')) return;
+    
+    try {
+      const response = await fetch(`${API_URL}/api/usuarios/${id}`, { method: 'DELETE' });
+      if (response.ok) { 
+        mostrarMensaje('exito', 'Cliente degradado exitosamente.'); 
+        cargarDatos(); 
+      } else { 
+        const data = await response.json(); 
+        mostrarMensaje('error', data.error || 'Error al degradar al cliente.'); 
+      }
+    } catch (err) { mostrarMensaje('error', 'Error de conexión al degradar.'); }
+  };
+
+  // FILTROS INTELIGENTES (Actualizados para excluir/incluir al admin_restringido)
   const vehiculosFiltrados = vehiculos.filter(car => car.marca?.toLowerCase().includes(busqueda.toLowerCase()) || car.modelo?.toLowerCase().includes(busqueda.toLowerCase()));
-  const clientesFiltrados = usuariosDb.filter(u => u.rol !== 'admin' && u.rol !== 'superadmin' && !u.email?.toLowerCase().endsWith('@autopremium.com'));
-  const adminsFiltrados = usuariosDb.filter(u => u.rol === 'admin' || u.rol === 'superadmin' || u.email?.toLowerCase().endsWith('@autopremium.com'));
+  const clientesFiltrados = usuariosDb.filter(u => !['admin', 'superadmin', 'admin_restringido'].includes(u.rol) && !u.email?.toLowerCase().endsWith('@autopremium.com'));
+  const adminsFiltrados = usuariosDb.filter(u => ['admin', 'superadmin', 'admin_restringido'].includes(u.rol) || u.email?.toLowerCase().endsWith('@autopremium.com'));
 
   const agregarSpec = () => setSpecsInput([...specsInput, { clave: '', valor: '' }]);
   const cambiarSpec = (index, campo, valor) => {
     const nuevos = [...specsInput]; nuevos[index][campo] = valor; setSpecsInput(nuevos);
   };
   const eliminarSpec = (index) => setSpecsInput(specsInput.filter((_, i) => i !== index));
+
+  // TABS DISPONIBLES SEGÚN EL ROL
+  // Si es admin_restringido, no mostramos la pestaña de Inventario
+  const pestañasRenderizadas = [
+    { id: 'resumen', etiqueta: 'Resumen Financiero' },
+    (adminUser?.rol === 'superadmin' || adminUser?.rol === 'admin') ? { id: 'inventario', etiqueta: 'Gestión de Inventario' } : null,
+    { id: 'clientes', etiqueta: `Clientes (${clientesFiltrados.length})` },
+    { id: 'admins', etiqueta: `Staff / Directivos (${adminsFiltrados.length})` }
+  ].filter(Boolean); // Filter elimina los "null"
 
   // ==========================================
   // PANTALLA 1: BÓVEDA DE ACCESO
@@ -422,12 +466,7 @@ export default function App() {
         )}
 
         <div className="flex flex-wrap gap-2 border-b border-zinc-900 pb-4 mb-10 overflow-x-auto">
-          {[
-            { id: 'resumen', etiqueta: 'Resumen Financiero' }, 
-            { id: 'inventario', etiqueta: 'Gestión de Inventario' },
-            { id: 'clientes', etiqueta: `Clientes (${clientesFiltrados.length})` },
-            { id: 'admins', etiqueta: `Staff / Directivos (${adminsFiltrados.length})` }
-          ].map(tab => (
+          {pestañasRenderizadas.map(tab => (
             <button key={tab.id} onClick={() => setTabActiva(tab.id)} className={`px-5 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition duration-300 whitespace-nowrap ${tabActiva === tab.id ? 'bg-white text-black font-black shadow-xl' : 'bg-zinc-950 border border-zinc-900 text-zinc-400 hover:text-white hover:border-zinc-700'}`}>
               {tab.etiqueta}
             </button>
@@ -531,7 +570,11 @@ export default function App() {
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-zinc-900 text-zinc-500 uppercase tracking-widest font-black">
-                      <th className="py-4 px-4">ID</th><th className="py-4 px-4">Nombre</th><th className="py-4 px-4">Email</th><th className="py-4 px-4 text-center">Compras</th>
+                      <th className="py-4 px-4">ID</th>
+                      <th className="py-4 px-4">Nombre</th>
+                      <th className="py-4 px-4">Email</th>
+                      <th className="py-4 px-4 text-center">Compras</th>
+                      <th className="py-4 px-4 text-center">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-900 font-medium">
@@ -541,16 +584,31 @@ export default function App() {
                         <td className="py-4 px-4 font-bold">{user.nombre}</td>
                         <td className="py-4 px-4 text-zinc-300 font-mono">{user.email}</td>
                         <td className="py-4 px-4 text-center">
-                          {user.compras_totales > 0 ? (
+                          {Number(user.compras_totales) > 0 ? (
                             <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-900 px-3 py-1 rounded-md">{user.compras_totales}</span>
                           ) : (
                             <span className="text-zinc-600">0</span>
                           )}
                         </td>
+                        <td className="py-4 px-4 text-center">
+                          {/* LOGICA DE BOTÓN PARA DEGRADAR CLIENTE */}
+                          {Number(user.compras_totales) > 0 ? (
+                             <span className="inline-block bg-zinc-900/50 border border-zinc-800 text-zinc-500 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest cursor-not-allowed">
+                               Protegido
+                             </span>
+                          ) : (
+                             <button 
+                               onClick={() => degradarCliente(user.id, user.compras_totales)} 
+                               className="inline-block border border-red-900/40 text-red-500 hover:bg-red-950/40 hover:text-red-400 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition"
+                             >
+                               Degradar
+                             </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                     {clientesFiltrados.length === 0 && (
-                      <tr><td colSpan="4" className="py-8 text-center text-zinc-500 font-mono uppercase tracking-widest">No hay clientes públicos registrados.</td></tr>
+                      <tr><td colSpan="5" className="py-8 text-center text-zinc-500 font-mono uppercase tracking-widest">No hay clientes públicos registrados.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -561,7 +619,7 @@ export default function App() {
             {tabActiva === 'admins' && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
                 
-                {/* Crear Admin */}
+                {/* Crear Admin - Solo para propósitos generales de visualización */}
                 <div className="bg-zinc-950 border border-zinc-900 rounded-3xl p-6 h-fit">
                   <h3 className="font-black text-sm uppercase tracking-widest mb-2 border-b border-zinc-900 pb-3">Registrar Nuevo Admin</h3>
                   <form onSubmit={registrarNuevoAdmin} className="space-y-4 pt-4">
@@ -606,7 +664,7 @@ export default function App() {
                         onSave={handleSaveUsuario} 
                         onDelete={eliminarUsuario}
                         usuarioActualId={adminUser.id}
-                        currentUserRole={adminUser.rol} // <--- PASAMOS EL ROL AQUÍ
+                        currentUserRole={adminUser.rol}
                       />
                     ))}
                   </div>

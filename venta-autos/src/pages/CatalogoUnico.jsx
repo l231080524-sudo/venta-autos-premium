@@ -208,9 +208,9 @@ export default function CatalogoUnico({ setModalAuth, usuario, carritoCount = 0,
         </div>
 
         {/* =========================================================
-            MENÚ MÓVIL (Ordenado con los 4 enlaces)
+            MENÚ MÓVIL (Corregido el espaciado y colapso)
             ========================================================= */}
-        <div className={`absolute top-full left-0 w-full bg-black/95 backdrop-blur-xl border-b border-zinc-800 flex flex-col gap-4 p-6 transition-all duration-300 md:hidden overflow-hidden ${mobileMenuOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0 py-0 border-transparent'}`}>
+        <div className={`absolute top-full left-0 w-full bg-black/95 backdrop-blur-xl border-b border-zinc-800 flex flex-col transition-all duration-300 md:hidden overflow-hidden ${mobileMenuOpen ? 'max-h-[500px] opacity-100 p-6 gap-4' : 'max-h-0 opacity-0 p-0 gap-0 border-transparent'}`}>
           
           <button onClick={() => { navigate('/'); setMobileMenuOpen(false); }} className="text-zinc-400 hover:text-white text-left font-bold tracking-widest uppercase text-sm py-2">
             Inicio
