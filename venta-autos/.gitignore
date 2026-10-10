@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 node_modules
 .env
+# Browser verification artifacts
+playwright-report/
+test-results/

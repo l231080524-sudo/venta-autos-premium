@@ -74,9 +74,6 @@ function AdminCarCard({ auto, onDelete, onSave }) {
   );
 }
 
-// ==========================================
-// COMPONENTE: TARJETA DE USUARIO / STAFF
-// ==========================================
 function AdminUserCard({ admin, onDelete, onSave, usuarioActualId, currentUserRole }) {
   const [editando, setEditando] = useState(false);
   const [nombre, setNombre] = useState(admin.nombre);
@@ -154,9 +151,6 @@ function AdminUserCard({ admin, onDelete, onSave, usuarioActualId, currentUserRo
   );
 }
 
-// ==========================================
-// APLICACIÓN PRINCIPAL (BÓVEDA + PANEL)
-// ==========================================
 export default function App() {
   const [adminUser, setAdminUser] = useState(() => {
     try {
@@ -268,9 +262,6 @@ export default function App() {
   const ticketPromedioEstimado = vehiculos.length > 0 ? (vehiculos.reduce((acc, auto) => acc + Number(auto.precio), 0) / vehiculos.length) : 2500000;
   const gananciasTotales = unidadesVendidas * ticketPromedioEstimado;
 
-  // ------------------------------
-  // CRUD VEHÍCULOS
-  // ------------------------------
   const crearVehiculo = async (e) => {
     e.preventDefault();
     const especificaciones = {};
@@ -303,9 +294,6 @@ export default function App() {
     } catch (err) { mostrarMensaje('error', 'Error de red.'); }
   };
 
-  // ------------------------------
-  // CRUD USUARIOS Y CLIENTES
-  // ------------------------------
   const registrarNuevoAdmin = async (e) => {
     e.preventDefault();
     if (!adminEmailPrefix.trim()) return mostrarMensaje('error', 'Escribe un prefijo de correo válido.');
@@ -395,9 +383,6 @@ export default function App() {
     { id: 'admins', etiqueta: `Staff / Directivos (${adminsFiltrados.length})` }
   ].filter(Boolean); // Filter elimina los "null"
 
-  // ==========================================
-  // PANTALLA 1: BÓVEDA DE ACCESO
-  // ==========================================
   if (!adminUser) {
     return (
       <div className="min-h-screen bg-black flex flex-col justify-center items-center p-6 font-sans relative overflow-hidden text-white">
@@ -435,9 +420,6 @@ export default function App() {
     );
   }
 
-  // ==========================================
-  // PANTALLA 2: DASHBOARD
-  // ==========================================
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans antialiased pb-20">
       <header className="border-b border-zinc-900 bg-black/40 backdrop-blur-xl sticky top-0 z-50 transition-all">

@@ -3,7 +3,6 @@ import pg from 'pg';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
-// Configurar variables de entorno
 dotenv.config();
 
 const app = express();

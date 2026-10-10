@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import Showroom from './components/Showroom';
+import SiteFooter from './components/SiteFooter';
+import SiteHeader from './components/SiteHeader';
+import { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 // Importaciones
@@ -15,7 +18,7 @@ export default function App() {
     try {
       const guardado = localStorage.getItem('usuario_premium');
       return guardado ? JSON.parse(guardado) : null;
-    } catch (e) {
+    } catch {
       return null;
     }
   });
@@ -23,9 +26,8 @@ export default function App() {
   const [carritoCount, setCarritoCount] = useState(0);
   const [modalAuth, setModalAuth] = useState({ abierto: false, modoRegistro: false });
 
-  const actualizarConteoCarrito = async () => {
+  const actualizarConteoCarrito = useCallback(async () => {
     if (!usuario) {
-      setCarritoCount(0);
       return;
     }
     try {
@@ -38,11 +40,13 @@ export default function App() {
     } catch (err) {
       console.error("Error actualizando badge del carrito:", err);
     }
-  };
+  }, [usuario, API_URL]);
 
   useEffect(() => {
+    // State updates occur only after the asynchronous inventory response.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     actualizarConteoCarrito();
-  }, [usuario]);
+  }, [actualizarConteoCarrito]);
 
   const login = (datosUsuario) => {
     setUsuario(datosUsuario);
@@ -83,19 +87,25 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <AuthModal 
-        modalAuth={modalAuth} 
-        setModalAuth={setModalAuth} 
-        onLogin={login} 
-      />
+      <a className="skip-link" href="#contenido-principal">Saltar al contenido principal</a>
+      <SiteHeader usuario={usuario} carritoCount={carritoCount} logout={logout} setModalAuth={setModalAuth} />
+      {modalAuth.abierto && <AuthModal
+        modalAuth={modalAuth}
+        setModalAuth={setModalAuth}
+        onLogin={login}
+      />}
+      <main id="contenido-principal" tabIndex={-1}>
       <Routes>
-        <Route path="/" element={<Home setModalAuth={setModalAuth} usuario={usuario} carritoCount={carritoCount} logout={logout} />} />
-        <Route path="/catalogo" element={<CatalogoUnico setModalAuth={setModalAuth} usuario={usuario} carritoCount={carritoCount} logout={logout} agregarAlCarrito={agregarAlCarrito} />} />
-        <Route path="/carrito" element={<Carrito usuario={usuario} logout={logout} setModalAuth={setModalAuth} actualizarConteoCarrito={actualizarConteoCarrito} />} />
-        
+        <Route path="/" element={<Home />} />
+        <Route path="/catalogo" element={<CatalogoUnico agregarAlCarrito={agregarAlCarrito} />} />
+        <Route path="/carrito" element={<Carrito key={usuario?.id || "invitado"} usuario={usuario} setModalAuth={setModalAuth} actualizarConteoCarrito={actualizarConteoCarrito} />} />
+
         {/* Redirección de seguridad */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <Showroom />
+      </main>
+      <SiteFooter />
     </BrowserRouter>
   );
 }
