@@ -89,6 +89,9 @@
 .primary-button:hover { text-decoration: underline; }
 button[aria-pressed="true"] { outline: 2px solid var(--content); outline-offset: -5px; text-decoration: underline; text-decoration-thickness: 2px; }
 .hero-copy { background: var(--surface); }
+.catalog-category-filters { display: flex; flex-wrap: wrap; gap: .5rem; width: 100%; min-width: 0; }
+/* Use each label's full width when wrapping, rather than squeezing five buttons into one row. */
+.catalog-category-filters button { flex: 1 1 max-content; max-width: 100%; }
 .car-card { height: 100%; border: 1px solid var(--line); border-radius: 1rem; background: var(--panel); display: flex; flex-direction: column; }
 .car-image { position: relative; flex-shrink: 0; aspect-ratio: 16 / 10; background: var(--surface); border-radius: 1rem 1rem 0 0; overflow: hidden; }
 .car-image img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }

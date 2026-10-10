@@ -54,14 +54,14 @@ export default function CatalogoUnico({ agregarAlCarrito }) {
       </header>
 
       {/* FILTROS */}
-      <section className="relative max-w-[1400px] mx-auto px-4 md:px-8 mb-8">
+      <section aria-label="Filtros del catálogo" className="relative w-full max-w-[1400px] mx-auto px-4 md:px-8 mb-8">
         <div className="bg-surface backdrop-blur-xl p-4 rounded-2xl border border-line flex flex-col xl:flex-row items-center justify-between gap-6">
-          <div className="flex flex-wrap justify-center gap-2 w-full xl:w-auto">
+          <div role="group" aria-label="Categoría del vehículo" className="catalog-category-filters">
             {['todos', 'gasolina', 'hibrido', 'electrico', 'superdeportivo'].map((cat) => (
               <button
                 key={cat} aria-pressed={categoriaFiltro === cat}
                 onClick={() => setCategoriaFiltro(cat)}
-                className={`px-4 py-3 md:py-2 text-sm md:text-sm uppercase tracking-normal font-bold rounded-lg   flex-1 lg:flex-none text-center border ${
+                className={`px-4 py-3 md:py-2 text-sm uppercase tracking-normal font-bold rounded-lg text-center border ${
                   categoriaFiltro === cat
                     ? 'bg-panel text-content border-line '
                     : 'bg-transparent text-muted border-line hover:bg-panel hover:text-content'
@@ -72,8 +72,8 @@ export default function CatalogoUnico({ agregarAlCarrito }) {
             ))}
           </div>
 
-          <div className="w-full xl:w-96 px-2">
-            <div className="flex justify-between items-center mb-2">
+          <div className="w-full xl:w-96 xl:shrink-0 min-w-0">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 justify-between items-center mb-2">
               <label htmlFor="precio-maximo" className="text-sm font-bold">Precio máximo</label>
               <span className="text-sm md:text-sm font-ui font-bold text-content">
                 ${precioMaximo.toLocaleString('es-MX')} MXN
