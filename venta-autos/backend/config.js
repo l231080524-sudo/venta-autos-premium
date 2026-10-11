@@ -8,6 +8,7 @@ export function readConfig(env = process.env) {
     webhookSecret: env.MP_WEBHOOK_SECRET || '',
     sellerId: env.MP_SELLER_ID || '',
     applicationId: env.MP_APPLICATION_ID || '',
+    publicKey: env.MP_PUBLIC_KEY || '',
     // Orders exige este correo para tarjetas de prueba; no es el correo personal de la cuenta.
     buyerEmail: env.MP_TEST_BUYER_EMAIL || 'test@testuser.com',
     environment: env.MP_ENV || 'prueba',
@@ -21,12 +22,16 @@ export function readConfig(env = process.env) {
 
 export function assertCheckoutConfig(config) {
   requireValue(config.enabled, 503, 'Los pagos aún no están habilitados.');
-  // Esta entrega habilita únicamente Sandbox. Producción necesita revisión final y precios reales.
-  requireValue(config.environment === 'prueba', 503, 'Esta integración está habilitada solo para pruebas.');
-  requireValue(config.accessToken && config.sellerId && config.applicationId && config.buyerEmail,
+  requireValue(['prueba', 'produccion'].includes(config.environment), 503, 'MP_ENV debe ser prueba o produccion.');
+  requireValue(config.accessToken && config.sellerId && config.applicationId,
     503, 'Falta configurar Mercado Pago en el servidor.');
-  requireValue(config.buyerEmail === 'test@testuser.com', 503, 'Para tarjetas de prueba de Orders usa test@testuser.com.');
-  requireValue(cents(config.testUnitPrice) > 0, 503, 'Falta un importe de prueba válido.');
+  if (config.environment === 'prueba') {
+    requireValue(config.buyerEmail === 'test@testuser.com', 503, 'Para tarjetas de prueba de Orders usa test@testuser.com.');
+    requireValue(cents(config.testUnitPrice) > 0, 503, 'Falta un importe de prueba válido.');
+  } else {
+    requireValue(config.accessToken.startsWith('APP_USR-') && config.publicKey.startsWith('APP_USR-') && config.webhookSecret,
+      503, 'Configura las credenciales y el webhook de producción.');
+  }
   requireValue(config.authSecret.length >= 32, 503, 'Configura AUTH_SECRET para proteger los intentos de pago.');
 }
 
@@ -58,11 +63,13 @@ export function createMercadoPago(config, fetcher = fetch) {
   return {
     create: (body, key) => request('/v1/orders', { method: 'POST', headers: { 'X-Idempotency-Key': key }, body: JSON.stringify(body) }),
     get: id => request(`/v1/orders/${encodeURIComponent(id)}`),
-    assertTestSeller: async () => {
-      // Verifica ANTES de enviar la tarjeta que el token pertenece al vendedor de prueba mexicano.
+    assertSeller: async () => {
+      requireValue(['prueba','produccion'].includes(config.environment),503,'Ambiente de Mercado Pago inválido.');
+      // Verifica la identidad y el ambiente ANTES de enviar un cobro.
       const account = await request('/users/me');
+      const testAccount = config.accessToken.startsWith('TEST-') || account.tags?.includes('test_user');
       requireValue(String(account.id) === config.sellerId && account.site_id === 'MLM'
-        && (config.accessToken.startsWith('TEST-') || account.tags?.includes('test_user')), 503, 'Usa las credenciales de PRUEBA de México.');
+        && (config.environment === 'prueba' ? testAccount : !testAccount), 503, 'El vendedor o ambiente de las credenciales no coincide.');
     },
   };
 }

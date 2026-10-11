@@ -27,7 +27,8 @@ export default function Carrito({ usuario, setModalAuth, actualizarConteoCarrito
     return ()=>{active=false;};
   },[usuario]);
   const selection=items.filter(item=>selectedIds.includes(item.id));
-  const total=selection.length * Number(config?.precio_prueba || 0);
+  const real=config?.ambiente==='produccion';
+  const total=real ? selection.reduce((sum,item)=>sum+Math.round(Number(item.precio)*100),0)/100 : selection.length * Number(config?.precio_prueba || 0);
   async function remove(id) {
     setError(''); setBusy(true);
     try {
@@ -43,7 +44,7 @@ export default function Carrito({ usuario, setModalAuth, actualizarConteoCarrito
     try {
       // Solo se envían IDs y una referencia; el servidor fija y guarda el importe.
       // Se conserva la referencia por selección incluso después de recargar o de un timeout.
-      const key=`checkout_${usuario.id}_${[...selectedIds].sort((a,b)=>a-b).join('_')}`;
+      const key=`checkout_${config?.ambiente || 'prueba'}_${usuario.id}_${[...selectedIds].sort((a,b)=>a-b).join('_')}`;
       let reference=sessionStorage.getItem(key);
       if(!reference) { reference=crypto.randomUUID(); sessionStorage.setItem(key,reference); }
       const order=await api('/api/mercadopago/ordenes',usuario,{method:'POST',body:JSON.stringify({apartados_ids:selectedIds,referencia:reference})});
@@ -66,7 +67,7 @@ export default function Carrito({ usuario, setModalAuth, actualizarConteoCarrito
           <button aria-pressed={tab==='carrito'} onClick={()=>setTab('carrito')}>Carrito ({items.length})</button>
           <button aria-pressed={tab==='pagos'} onClick={()=>setTab('pagos')}>Historial de pagos ({orders.length})</button>
         </div>
-        <p className="bg-panel border border-line p-4 rounded-lg mb-6">Modo de prueba: {formatMoney(config?.precio_prueba || 0)} MXN por vehículo. Utiliza únicamente el comprador y las tarjetas de prueba de Mercado Pago. Esta operación no compra ni reserva un vehículo real.</p>
+        <p className="bg-panel border border-line p-4 rounded-lg mb-6">{real ? 'Se cobrará dinero real por el total seleccionado. Esta es una demostración y no incluye la entrega de vehículos.' : `Modo de prueba: ${formatMoney(config?.precio_prueba || 0)} MXN por vehículo. Utiliza únicamente el comprador y las tarjetas de prueba de Mercado Pago. Esta operación no compra ni reserva un vehículo real.`}</p>
         {tab==='carrito' && <>
           {items.length===0 ? <p>Tu carrito está vacío. <Link to="/catalogo" className="underline">Ver catálogo</Link></p> : <>
             <button disabled={busy} className="mb-4" onClick={()=>setSelectedIds(selectedIds.length===items.length?[]:items.map(item=>item.id))}>{selectedIds.length===items.length?'Deseleccionar todos':'Seleccionar todos'}</button>
@@ -75,12 +76,12 @@ export default function Carrito({ usuario, setModalAuth, actualizarConteoCarrito
                 {items.map(item=><article key={item.id} className="bg-panel border border-line rounded-xl p-4 flex flex-wrap gap-4 items-center">
                   <input type="checkbox" disabled={busy} aria-label={`Seleccionar ${item.marca} ${item.modelo}`} checked={selectedIds.includes(item.id)} onChange={()=>setSelectedIds(current=>current.includes(item.id)?current.filter(id=>id!==item.id):[...current,item.id])}/>
                   <img src={item.imagen} alt={`${item.marca} ${item.modelo}`} className="w-32 rounded-lg"/>
-                  <div className="flex-1 min-w-0"><h2 className="text-lg font-bold">{item.marca} {item.modelo}</h2><p>Precio de catálogo: {formatMoney(item.precio)} MXN</p><p>Cobro de prueba: {formatMoney(config?.precio_prueba || 0)} MXN</p></div>
+                  <div className="flex-1 min-w-0"><h2 className="text-lg font-bold">{item.marca} {item.modelo}</h2><p>Precio de catálogo: {formatMoney(item.precio)} MXN</p>{!real && <p>Cobro de prueba: {formatMoney(config?.precio_prueba || 0)} MXN</p>}</div>
                   <button disabled={busy} onClick={()=>remove(item.id)} aria-label={`Eliminar ${item.marca} ${item.modelo}`}>Eliminar</button>
                 </article>)}
               </div>
               <aside className="bg-panel border border-line rounded-xl p-6 self-start">
-                <h2 className="text-xl font-bold">Resumen de prueba</h2><p>{selection.length} vehículos seleccionados</p>
+                <h2 className="text-xl font-bold">{real ? 'Resumen del cobro' : 'Resumen de prueba'}</h2><p>{selection.length} vehículos seleccionados</p>
                 <p className="text-xl font-bold my-4">Total: {formatMoney(total)} MXN</p>
                 <button className="primary-button w-full" disabled={busy || !selection.length || !config?.habilitado} onClick={()=>setShowPayment(true)}>Continuar al pago</button>
                 {!config?.habilitado && <p className="mt-3">El cobro está pendiente de configuración.</p>}
@@ -91,7 +92,8 @@ export default function Carrito({ usuario, setModalAuth, actualizarConteoCarrito
         {tab==='pagos' && <div className="grid gap-4 md:grid-cols-2">
           {!orders.length && <p>Aún no tienes pagos registrados.</p>}
           {orders.map(order=><article key={order.referencia} className="bg-panel border border-line p-6 rounded-xl">
-            <h2 className="text-lg font-bold">{stateLabels[order.estado]}</h2>
+            <h2 className="text-lg font-bold">{order.estado==='confirmado' && order.ambiente==='produccion' ? 'Pago confirmado' : stateLabels[order.estado]}</h2>
+            <p>{order.ambiente==='produccion' ? 'Cobro real' : 'Sandbox'}</p>
             <ul>{order.items.map((item,i)=><li key={i}>{item.marca} {item.modelo}</li>)}</ul>
             <p>{formatMoney(order.importe)} MXN · {new Date(order.creado_en).toLocaleString('es-MX')}</p>
             <Link className="inline-flex min-h-11 items-center underline" to={`/pago/${order.referencia}`}>Ver estado del pago</Link>
@@ -99,10 +101,10 @@ export default function Carrito({ usuario, setModalAuth, actualizarConteoCarrito
         </div>}
       </>}
     </div>
-    {showPayment && <AccessibleDialog title="Confirmar pago de prueba" onClose={()=>!busy && setShowPayment(false)}>
+    {showPayment && <AccessibleDialog title={real ? 'Confirmar importe del cobro' : 'Confirmar pago de prueba'} onClose={()=>!busy && setShowPayment(false)}>
       <form onSubmit={checkout} className="p-6 space-y-4" aria-busy={busy}>
-        <p>Vas a iniciar una operación de prueba por {formatMoney(total)} MXN. Capturarás la tarjeta en el formulario seguro de Mercado Pago dentro de esta página.</p>
-        <button type="submit" className="primary-button w-full" disabled={busy}>{busy?'Creando orden…':'Crear orden de prueba'}</button>
+        <p>{real ? `Se preparará un único cobro real por ${formatMoney(total)} MXN. No incluye entrega de vehículos. El importe definitivo se mostrará antes de autorizar el pago.` : `Vas a iniciar una operación de prueba por ${formatMoney(total)} MXN.`} Capturarás la tarjeta en el formulario seguro de Mercado Pago dentro de esta página.</p>
+        <button type="submit" className="primary-button w-full" disabled={busy}>{busy?'Creando orden…':real ? 'Crear orden' : 'Crear orden de prueba'}</button>
       </form>
     </AccessibleDialog>}
   </div>;

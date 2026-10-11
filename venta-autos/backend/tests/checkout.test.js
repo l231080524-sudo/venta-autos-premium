@@ -28,7 +28,7 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     CREATE TABLE usuarios(id SERIAL PRIMARY KEY,nombre VARCHAR(100),email VARCHAR(150) UNIQUE,password_hash VARCHAR(255),rol user_role DEFAULT 'cliente',telefono VARCHAR(20));
     CREATE TABLE vehiculos(id SERIAL PRIMARY KEY,marca VARCHAR(50),modelo VARCHAR(100),anio INT,precio NUMERIC(12,2),categoria car_category,imagen TEXT,especificaciones JSONB,descripcion TEXT,stock INT);
     CREATE TABLE apartados(id SERIAL PRIMARY KEY,usuario_id INT REFERENCES usuarios(id),vehiculo_id INT REFERENCES vehiculos(id),status order_status DEFAULT 'apartado',UNIQUE(usuario_id,vehiculo_id,status));`);
-  for (let pass = 0; pass < 2; pass++) for (const file of ['001_pagos.sql','002_checkout_orders.sql'])
+  for (let pass = 0; pass < 2; pass++) for (const file of ['001_pagos.sql','002_checkout_orders.sql','003_produccion.sql'])
     await pool.query(await readFile(new URL(`../../db/${file}`,import.meta.url),'utf8'));
   await pool.query(`INSERT INTO usuarios(nombre,email,password_hash,rol) VALUES
     ('Uno','uno@example.test','legacy123','cliente'),('Dos','dos@example.test','otra','cliente'),('Admin','admin@example.test','admin123','admin');
@@ -40,7 +40,7 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
   const provider = new Map(), keys = [], bodies = [];
   let clock = Date.now(), loseResponse = false, rejectRequest = false, nextStatus = 'created';
   const mp = {
-    assertTestSeller: async () => {},
+    assertSeller: async () => {},
     create: async (body,key) => {
       keys.push(key); bodies.push(body);
       if(rejectRequest) {rejectRequest=false;throw Object.assign(new Error('Solicitud rechazada'),{status:502,definitive:true});}
@@ -185,5 +185,44 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     remote.status='failed';remote.status_detail='rejected';remote.last_updated_date=new Date(++clock).toISOString();
     assert.equal((await request(draftPath+'/cancelar',undefined,2)).status,200);
     assert.equal((await request('/api/apartados/2',undefined,2,'DELETE')).status,200);
+  });
+  await t.test('producción: precios Neon, consentimiento, cargo único, webhook real y PDF; historial Sandbox protegido',async()=> {
+    Object.assign(config,{environment:'produccion',accessToken:'APP_USR-falso',publicKey:'APP_USR-public-falso'});
+    await pool.query('UPDATE vehiculos SET precio=CASE WHEN id=1 THEN 100 ELSE 80 END');
+    const selected=(await pool.query('INSERT INTO apartados(usuario_id,vehiculo_id) VALUES(1,1),(1,2) RETURNING id')).rows.map(row=>row.id);
+    const prodRef=randomUUID(),prodPath=`/api/mercadopago/ordenes/${prodRef}`;
+    assert.equal((await request('/api/mercadopago/ordenes',{referencia:prodRef,apartados_ids:selected,importe:'0.01'})).status,201);
+    const saved=await request(prodPath,undefined,1,'GET');
+    assert.equal(saved.data.importe,'180.00'); assert.equal(saved.data.ambiente,'produccion');
+    assert.deepEqual(saved.data.items.map(item=>item.precio_unitario),['100.00','80.00']);
+    assert.equal((await request(path,undefined,1,'GET')).data.puede_continuar,false);
+    assert.equal((await request(path+'/pagar',form)).status,409);
+    const productionForm={...form,payer:{email:'uno@example.test'}};
+    assert.equal((await request(prodPath+'/pagar',productionForm)).status,400);
+    assert.equal((await request(prodPath+'/pagar',{...form,acepto_cobro_real:true})).status,400);
+    await pool.query('UPDATE vehiculos SET precio=1'); // El importe autorizado es el histórico mostrado.
+    const before=keys.length;
+    const submissions=await Promise.all([request(prodPath+'/pagar',{...productionForm,acepto_cobro_real:true}),request(prodPath+'/pagar',{...productionForm,acepto_cobro_real:true})]);
+    assert.ok(submissions.every(result=>[200,409].includes(result.status)));
+    assert.equal(keys.length,before+1);
+    assert.equal(bodies.at(-1).total_amount,'180.00');
+    assert.equal(bodies.at(-1).payer.email,'uno@example.test');
+    assert.ok((await pool.query('SELECT autorizado_en FROM pagos WHERE ambiente=$1',['produccion'])).rows[0].autorizado_en);
+    const remote=[...provider.values()].at(-1);
+    remote.status='processed';remote.status_detail='accredited';remote.total_paid_amount='180.00';remote.live_mode=true;remote.last_updated_date=new Date(++clock).toISOString();
+    remote.transactions={payments:[{id:'PAYPROD1',status:'processed',status_detail:'accredited',amount:'180.00',payment_method:{id:'visa',type:'credit_card',installments:1}}]};
+    const ts=String(Date.now()),requestId='prod-request',signature=createHmac('sha256',config.webhookSecret).update(`id:${remote.id};request-id:${requestId};ts:${ts};`).digest('hex');
+    const notify=live=>fetch(base+'/api/mercadopago/webhook?data.id='+remote.id,{method:'POST',headers:{'Content-Type':'application/json','x-signature':`ts=${ts},v1=${signature}`,'x-request-id':requestId},body:JSON.stringify({type:'order',data:{id:remote.id},live_mode:live})});
+    assert.equal((await notify(false)).status,400);
+    assert.equal((await notify(true)).status,200); assert.equal((await notify(true)).status,200);
+    assert.equal((await request(prodPath,undefined,1,'GET')).data.estado,'confirmado');
+    assert.equal((await request(prodPath+'/pagar',{...productionForm,acepto_cobro_real:true})).status,409);
+    assert.equal(keys.length,before+1);
+    const pdf=await fetch(base+prodPath+'/comprobante',{headers:{Authorization:`Bearer ${sessionToken(1,config.authSecret)}`}});
+    assert.equal(pdf.status,200); assert.ok(pdf.headers.get('content-disposition').includes('comprobante-produccion-'));
+    assert.equal((await pool.query('SELECT stock FROM vehiculos WHERE id=1')).rows[0].stock,5);
+    const sandbox=await fetch(base+path+'/comprobante',{headers:{Authorization:`Bearer ${sessionToken(1,config.authSecret)}`}});
+    assert.equal(sandbox.status,200); assert.ok(sandbox.headers.get('content-disposition').includes('comprobante-prueba-'));
+    for(const price of [0,-1,'80.123','NaN']) assert.equal((await request('/api/vehiculos/1',{precio:price},3,'PUT')).status,400);
   });
 });

@@ -14,6 +14,8 @@ export default function PagoResultado({usuario,setModalAuth,actualizarConteoCarr
   const [downloading,setDownloading]=useState(false);
   const [downloadStatus,setDownloadStatus]=useState('');
   const [config,setConfig]=useState(null);
+  const [consentFor,setConsentFor]=useState('');
+  const consent=consentFor===`${referencia}:${order?.importe}`;
   const refresh=useCallback(async()=> {
     if(!usuario?.token) return;
     setBusy(true); setError(''); setNeedsLogin(false);
@@ -35,11 +37,11 @@ export default function PagoResultado({usuario,setModalAuth,actualizarConteoCarr
   const pay=useCallback(async(form)=> {
     setBusy(true); setError(''); setNeedsLogin(false);
     try {
-      const result=await api(`/api/mercadopago/ordenes/${referencia}/pagar`,usuario,{method:'POST',body:JSON.stringify(form)});
+      const result=await api(`/api/mercadopago/ordenes/${referencia}/pagar`,usuario,{method:'POST',body:JSON.stringify({...form,...(consent ? {acepto_cobro_real:true} : {})})});
       setOrder(result); actualizarConteoCarrito();
     } catch(err) {setError(err.message); setNeedsLogin(err.status===401); throw err;}
     finally {setBusy(false);}
-  },[referencia,usuario,actualizarConteoCarrito]);
+  },[referencia,usuario,actualizarConteoCarrito,consent]);
   async function cancel() {
     setBusy(true);setError('');setNeedsLogin(false);
     try { await api(`/api/mercadopago/ordenes/${referencia}/cancelar`,usuario,{method:'POST'}); navigate('/carrito'); }
@@ -58,8 +60,8 @@ export default function PagoResultado({usuario,setModalAuth,actualizarConteoCarr
       {error && <p role="alert" className="border border-line p-4 rounded-lg mb-4">{error} {needsLogin && <button onClick={()=>setModalAuth({abierto:true,modoRegistro:false})}>Volver a iniciar sesión</button>}</p>}
       {busy && <p role="status">Consultando el pago…</p>}
       {order && <div className="bg-panel border border-line p-6 rounded-xl space-y-4">
-        <h2 aria-live="polite" aria-atomic="true" className="text-xl font-bold">{labels[order.estado]}</h2>
-        <p>Operación Sandbox: no es una compra real.</p>
+        <h2 aria-live="polite" aria-atomic="true" className="text-xl font-bold">{order.estado==='confirmado' && order.ambiente==='produccion' ? 'Pago confirmado' : labels[order.estado]}</h2>
+        <p>{order.ambiente==='produccion' ? 'Cobro real por una demostración. No se entregará ningún vehículo.' : 'Operación Sandbox: no es una compra real.'}</p>
         <p>Importe: <strong>{formatMoney(order.importe)} MXN</strong></p>
         <ul>{order.items.map((item,i)=><li key={i}>{item.marca} {item.modelo} · {formatMoney(item.subtotal)} MXN</li>)}</ul>
         <p>Referencia: {order.referencia}</p>
@@ -69,17 +71,20 @@ export default function PagoResultado({usuario,setModalAuth,actualizarConteoCarr
           <button className="primary-button" disabled={downloading || busy} onClick={receipt}>
             {downloading ? 'Preparando PDF…' : 'Descargar comprobante PDF'}
           </button>
-          <p className="mt-2">Comprobante de prueba - Sandbox. Incluye comprador, vehículos, importes y datos del pago.</p>
+          <p className="mt-2">{order.ambiente==='produccion' ? 'Comprobante del cobro real.' : 'Comprobante de prueba - Sandbox.'} Incluye comprador, vehículos, importes y datos del pago.</p>
           <p role="status" aria-live="polite">{downloadStatus}</p>
         </div>}
-        {order.estado==='rechazado' && <p>No se confirmó el pago. {order.detalle_pago==='rejected_by_issuer' ? 'La tarjeta fue rechazada por el emisor. ' : ''}Para simular una aprobación, usa la tarjeta de prueba y escribe APRO en el nombre del titular.</p>}
+        {order.estado==='rechazado' && <p>No se confirmó el pago. {order.detalle_pago==='rejected_by_issuer' ? 'La tarjeta fue rechazada por el emisor. ' : ''}{order.ambiente==='produccion' ? 'Consulta con tu banco o intenta con otra tarjeta.' : 'Para simular una aprobación, usa la tarjeta de prueba y escribe APRO en el nombre del titular.'}</p>}
         {order.estado==='en_proceso' && <p>El resultado aún no está confirmado. Vuelve a consultar más tarde; no inicies otro cobro.</p>}
         {order.puede_recuperar && <div>
           <p>Falta recuperar el resultado del intento enviado. Este botón reutiliza exactamente la solicitud original; no inicia un segundo cobro. Antes de cancelar, hay que conocer su resultado.</p>
           <button disabled={busy} onClick={()=>pay({}).catch(()=>{})}>Recuperar resultado del intento</button>
         </div>}
-        {order.puede_continuar && !order.puede_recuperar && config?.habilitado && <MercadoPagoCard amount={order.importe} email={config.comprador_prueba_email} onSubmit={pay}/>}
-        {(order.puede_cancelar ?? order.puede_continuar) && <button disabled={busy} onClick={cancel}>Cancelar orden de prueba</button>}
+        {order.puede_continuar && !order.puede_recuperar && config?.habilitado && <>
+          {order.ambiente==='produccion' && <label className="flex gap-3 items-start"><input type="checkbox" checked={consent} onChange={event=>setConsentFor(event.target.checked ? `${referencia}:${order.importe}` : '')}/><span>Autorizo un único cobro real de {formatMoney(order.importe)} MXN por esta demostración y entiendo que no se entregará ningún vehículo.</span></label>}
+          {(order.ambiente!=='produccion' || consent) && <MercadoPagoCard amount={order.importe} email={order.ambiente==='produccion' ? order.comprador_email : config.comprador_prueba_email} publicKey={config.public_key} environment={order.ambiente} onSubmit={pay}/>}
+        </>}
+        {(order.puede_cancelar ?? order.puede_continuar) && <button disabled={busy} onClick={cancel}>Cancelar orden{order.ambiente==='produccion' ? '' : ' de prueba'}</button>}
       </div>}
       <div className="flex flex-wrap gap-4 mt-6"><button disabled={busy} onClick={refresh}>Actualizar estado</button><Link className="inline-flex min-h-11 items-center underline" to="/carrito">Volver al carrito</Link></div>
     </>}

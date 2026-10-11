@@ -24,6 +24,8 @@ export function createCheckout({ pool, config, mp, authenticate }) {
       const order = await findOrder(db, reference, userId, true);
       const payment = (await db.query('SELECT * FROM pagos WHERE orden_id = $1 ORDER BY id DESC LIMIT 1 FOR UPDATE', [order.id])).rows[0];
       if (!payment?.mp_order_id) return;
+      if (payment.ambiente !== config.environment) return; // Historial del ambiente anterior, sin usar sus credenciales.
+      if (payment.ambiente === 'produccion') await mp.assertSeller();
       const remote = await mp.get(payment.mp_order_id);
       validateRemote(remote, order, payment, config);
       const updated = new Date(remote.last_updated_date || remote.created_date);
@@ -50,8 +52,7 @@ export function createCheckout({ pool, config, mp, authenticate }) {
         await db.query("UPDATE ordenes SET estado='pago_confirmado', pago_confirmado_en=$2, actualizado_en=NOW() WHERE id=$1", [order.id, updated]);
         await db.query(`DELETE FROM apartados WHERE usuario_id=$2 AND id IN
           (SELECT apartado_id FROM orden_detalles WHERE orden_id=$1)`, [order.id, userId]);
-        // Sandbox no representa una venta real: no descuenta stock ni incrementa compras_totales.
-        // Habilitar producción exige implementar reserva/entrega de inventario y aprobar precios.
+        // Esta demostración cobra en producción, pero no entrega vehículos ni descuenta inventario.
       }
     });
   }
@@ -66,44 +67,50 @@ export function createCheckout({ pool, config, mp, authenticate }) {
     const state = order.estado === 'cancelada' ? 'cancelado' : payment?.estado_proveedor ? paymentState({ status: payment.estado_proveedor, status_detail: payment.detalle_estado_proveedor }) : 'pendiente';
     return { referencia: order.referencia, estado: state, ambiente: payment?.ambiente,
       importe: order.importe_a_cobrar, moneda: order.moneda, creado_en: order.creado_en,
+      comprador_email: order.comprador_email,
       confirmado_en: payment?.confirmado_en, metodo_pago: payment?.metodo_pago,
       mp_order_id: payment?.mp_order_id, mp_payment_id: payment?.mp_payment_id, items,
       detalle_pago: payment?.transacciones?.find(p => p.estado === 'failed')?.detalle,
-      puede_recuperar: order.estado === 'pendiente' && !!payment?.solicitud_guardada && !payment.mp_order_id,
-      puede_cancelar: !order.pago_confirmado_en && order.estado === 'pendiente' && !payment?.solicitud_guardada
+      puede_recuperar: payment?.ambiente === config.environment && order.estado === 'pendiente' && !!payment?.solicitud_guardada && !payment.mp_order_id,
+      puede_cancelar: payment?.ambiente === config.environment && !order.pago_confirmado_en && order.estado === 'pendiente' && !payment?.solicitud_guardada
         && (!payment?.mp_order_id || ['rechazado','cancelado'].includes(state)),
-      puede_continuar: !order.pago_confirmado_en && order.estado === 'pendiente' && ['pendiente','rechazado','cancelado'].includes(state),
+      puede_continuar: payment?.ambiente === config.environment && !order.pago_confirmado_en && order.estado === 'pendiente' && ['pendiente','rechazado','cancelado'].includes(state),
     };
   }
 
   async function submitPayment(reference, userId, form) {
     assertCheckoutConfig(config);
-    await mp.assertTestSeller();
+    await mp.assertSeller();
     // Consulta un intento existente antes de decidir si puede crearse otro.
     await syncOrder(reference, userId);
     await transaction(pool, async db => {
       const order = await findOrder(db, reference, userId, true);
       requireValue(!order.pago_confirmado_en && order.estado === 'pendiente', 409, 'Esta orden ya no admite pagos.');
       let payment = (await db.query('SELECT * FROM pagos WHERE orden_id=$1 ORDER BY id DESC LIMIT 1 FOR UPDATE', [order.id])).rows[0];
+      requireValue(payment.ambiente === config.environment, 409, 'Esta orden pertenece a otro ambiente. Crea una nueva desde el carrito.');
       if (payment.mp_order_id || payment.detalle_estado_proveedor === 'solicitud_rechazada') {
         requireValue(['rechazado','cancelado'].includes(paymentState({status:payment.estado_proveedor})),409,'El intento anterior aún puede cobrar. Actualiza su estado.');
         payment = (await db.query(`INSERT INTO pagos(orden_id,ambiente,clave_idempotencia,importe)
-          VALUES($1,'prueba',$2,$3) RETURNING *`,[order.id,randomUUID(),order.importe_a_cobrar])).rows[0];
+          VALUES($1,$2,$3,$4) RETURNING *`,[order.id,config.environment,randomUUID(),order.importe_a_cobrar])).rows[0];
       }
       if (payment.solicitud_mp) return; // Respuesta perdida: conserva token, cuerpo y clave originales.
       requireValue(typeof form?.token === 'string' && /^[a-zA-Z0-9_-]{10,256}$/.test(form.token),400,'Token de tarjeta inválido.');
       requireValue(typeof form.payment_method_id === 'string' && /^[a-zA-Z0-9_-]{1,50}$/.test(form.payment_method_id)
         && ['credit_card','debit_card'].includes(form.payment_type_id) && form.installments === 1,400,'Selecciona una tarjeta y un solo pago.');
-      requireValue(form.payer?.email === config.buyerEmail,400,'Utiliza el correo del comprador de prueba configurado.');
+      const email = config.environment === 'prueba' ? config.buyerEmail : order.comprador_email;
+      requireValue(form.payer?.email === email,400,'Utiliza el correo del comprador de esta orden.');
+      requireValue(config.environment !== 'produccion' || form.acepto_cobro_real === true,400,'Debes autorizar el cobro real por el total de la orden.');
       const identification = buyerIdentification(form.payer.identification);
       const details=(await db.query('SELECT marca,modelo,cantidad,precio_unitario FROM orden_detalles WHERE orden_id=$1 ORDER BY id',[order.id])).rows;
       // El importe procede exclusivamente de PostgreSQL. El Brick solo entrega un token temporal.
       const body={type:'online',processing_mode:'automatic',capture_mode:'automatic',external_reference:order.referencia,
-        total_amount:money(cents(order.importe_a_cobrar)),payer:{email:config.buyerEmail,...(identification ? {identification} : {})},
+        total_amount:money(cents(order.importe_a_cobrar)),payer:{email,...(identification ? {identification} : {})},
         transactions:{payments:[{amount:money(cents(order.importe_a_cobrar)),payment_method:{id:form.payment_method_id,
           type:form.payment_type_id,token:form.token,installments:1}}]},
-        items:details.map(item=>({title:`Prueba: ${item.marca} ${item.modelo}`,quantity:item.cantidad,unit_price:money(cents(item.precio_unitario))}))};
-      await db.query('UPDATE pagos SET solicitud_mp=$2,actualizado_en=NOW() WHERE id=$1',[payment.id,JSON.stringify(sealRequest(body,config.authSecret))]);
+        items:details.map(item=>({title:`${config.environment === 'prueba' ? 'Prueba' : 'Demostración'}: ${item.marca} ${item.modelo}`,quantity:item.cantidad,unit_price:money(cents(item.precio_unitario))}))};
+      // Sandbox sigue funcionando antes de ejecutar la nueva migración de producción.
+      const authorization = config.environment === 'produccion' ? ',autorizado_en=NOW()' : '';
+      await db.query(`UPDATE pagos SET solicitud_mp=$2${authorization},actualizado_en=NOW() WHERE id=$1`,[payment.id,JSON.stringify(sealRequest(body,config.authSecret))]);
     });
     // El COMMIT anterior conserva la idempotencia incluso si el proceso se interrumpe durante POST.
     const failure=await transaction(pool,async db=> {
@@ -128,8 +135,10 @@ export function createCheckout({ pool, config, mp, authenticate }) {
   }
 
   router.get('/config', (_req, res) => {
-    res.json({ ambiente: 'prueba', precio_prueba: config.testUnitPrice, habilitado: config.enabled,
-      comprador_prueba_email: config.buyerEmail });
+    let ready = true;
+    try { assertCheckoutConfig(config); } catch { ready = false; }
+    res.json({ ambiente: config.environment, precio_prueba: config.testUnitPrice, habilitado: ready,
+      public_key: config.publicKey, comprador_prueba_email: config.environment === 'prueba' ? config.buyerEmail : undefined });
   });
 
   router.post('/webhook', async (req, res) => {
@@ -157,10 +166,11 @@ export function createCheckout({ pool, config, mp, authenticate }) {
     requireValue(diagnostic.data_id_url_valido && validation.valid, 401, 'Firma inválida.');
     requireValue(String(req.body?.data?.id).toLowerCase() === id.toLowerCase(), 400, 'ID inconsistente.');
     if (!['order', 'orders_v2'].includes(req.body.type)) return res.sendStatus(200);
-    requireValue(req.body.live_mode !== true, 400, 'Solo se aceptan eventos de prueba.');
+    requireValue(config.environment === 'produccion' ? req.body.live_mode === true : req.body.live_mode !== true,
+      400, 'El evento pertenece a otro ambiente.');
     // Solo consultamos órdenes locales conocidas; el cuerpo no puede marcar una orden pagada.
     const { rows } = await pool.query(`SELECT o.referencia, o.usuario_id FROM ordenes o
-      JOIN pagos p ON p.orden_id=o.id WHERE lower(p.mp_order_id)=lower($1)`, [id]);
+      JOIN pagos p ON p.orden_id=o.id WHERE lower(p.mp_order_id)=lower($1) AND p.ambiente=$2`, [id,config.environment]);
     // Puede llegar antes de que el POST de creación haya persistido el ID: pedimos reintento.
     requireValue(rows.length, 503, 'Orden aún no registrada.');
     await syncOrder(rows[0].referencia, rows[0].usuario_id);
@@ -181,27 +191,32 @@ export function createCheckout({ pool, config, mp, authenticate }) {
       const existing = (await db.query('SELECT * FROM ordenes WHERE referencia=$1', [reference])).rows[0];
       if (existing) {
         requireValue(existing.usuario_id === req.user.id, 409, 'Referencia no disponible.');
+        const savedPayment=(await db.query('SELECT ambiente FROM pagos WHERE orden_id=$1 ORDER BY id DESC LIMIT 1',[existing.id])).rows[0];
+        requireValue(savedPayment?.ambiente === config.environment,409,'La referencia pertenece a otro ambiente. Abre una nueva orden.');
         return { referencia: reference };
       }
       const active = await db.query(`SELECT DISTINCT o.referencia FROM ordenes o
         JOIN orden_detalles d ON d.orden_id=o.id
-        WHERE o.usuario_id=$1 AND o.estado='pendiente' AND d.apartado_id=ANY($2::int[])`, [req.user.id, ids]);
+        JOIN pagos p ON p.orden_id=o.id
+        WHERE o.usuario_id=$1 AND o.estado='pendiente' AND d.apartado_id=ANY($2::int[]) AND p.ambiente=$3`, [req.user.id, ids,config.environment]);
       if (active.rows.length) return { referencia: active.rows[0].referencia, existente: true };
       const { rows: cars } = await db.query(`SELECT a.id AS apartado_id, v.* FROM apartados a
         JOIN vehiculos v ON v.id=a.vehiculo_id WHERE a.usuario_id=$1 AND a.status='apartado'
         AND a.id=ANY($2::int[]) ORDER BY v.id FOR UPDATE OF a,v`, [req.user.id, ids]);
       requireValue(cars.length === ids.length && cars.every(car => car.stock > 0), 409, 'Revisa tu carrito: faltan vehículos o existencias.');
-      const total = money(cents(config.testUnitPrice) * cars.length);
+      const prices = cars.map(car => config.environment === 'prueba' ? config.testUnitPrice : car.precio);
+      requireValue(prices.every(price => cents(price) > 0), 400, 'Hay un vehículo sin precio válido.');
+      const total = money(prices.reduce((sum,price) => sum + cents(price),0));
       const order = (await db.query(`INSERT INTO ordenes
         (usuario_id,referencia,concepto,total_vehiculos,importe_a_cobrar,comprador_nombre,comprador_email,comprador_telefono)
         VALUES ($1,$2,'compra',$3,$3,$4,$5,$6) RETURNING *`,
         [req.user.id, reference, total, req.user.nombre, req.user.email, req.user.telefono])).rows[0];
       for (const car of cars) await db.query(`INSERT INTO orden_detalles
         (orden_id,vehiculo_id,apartado_id,marca,modelo,anio,precio_unitario)
-        VALUES ($1,$2,$3,$4,$5,$6,$7)`, [order.id, car.id, car.apartado_id, car.marca, car.modelo, car.anio, config.testUnitPrice]);
+        VALUES ($1,$2,$3,$4,$5,$6,$7)`, [order.id, car.id, car.apartado_id, car.marca, car.modelo, car.anio, config.environment === 'prueba' ? config.testUnitPrice : car.precio]);
       // Persistir ANTES de llamar a MP conserva la idempotencia ante caídas de red o servidor.
       await db.query(`INSERT INTO pagos (orden_id,ambiente,clave_idempotencia,importe)
-        VALUES ($1,'prueba',$2,$3)`, [order.id, randomUUID(), total]);
+        VALUES ($1,$2,$3,$4)`, [order.id, config.environment, randomUUID(), total]);
       return { referencia: reference };
     });
     res.status(201).json(result);
@@ -225,7 +240,7 @@ export function createCheckout({ pool, config, mp, authenticate }) {
         importe, moneda, metodo_pago, tipo_pago, cuotas, tarjeta_ultimos_cuatro,
         mp_order_id, mp_payment_id, confirmado_en FROM pagos
         WHERE orden_id=$1 ORDER BY id DESC LIMIT 1`, [order.id])).rows[0];
-      requireValue(payment && payment.ambiente === 'prueba' && payment.estado_proveedor === 'processed'
+      requireValue(payment && ['prueba','produccion'].includes(payment.ambiente) && payment.estado_proveedor === 'processed'
         && payment.detalle_estado_proveedor === 'accredited' && payment.confirmado_en
         && payment.mp_order_id && payment.mp_payment_id && payment.moneda === order.moneda
         && cents(payment.importe) === cents(order.importe_a_cobrar), 409, 'El pago no tiene una acreditación válida para este comprobante.');
@@ -236,7 +251,7 @@ export function createCheckout({ pool, config, mp, authenticate }) {
     });
     const pdf = await createReceipt(receipt);
     res.set({ 'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="comprobante-prueba-${receipt.order.referencia}.pdf"`,
+      'Content-Disposition': `attachment; filename="comprobante-${receipt.payment.ambiente}-${receipt.order.referencia}.pdf"`,
       'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
     res.send(pdf);
   });
@@ -248,6 +263,7 @@ export function createCheckout({ pool, config, mp, authenticate }) {
       const order=await findOrder(db,req.params.referencia,req.user.id,true);
       requireValue(!order.pago_confirmado_en,409,'Una orden pagada no puede abandonarse.');
       const payment=(await db.query('SELECT * FROM pagos WHERE orden_id=$1 ORDER BY id DESC LIMIT 1 FOR UPDATE',[order.id])).rows[0];
+      requireValue(payment.ambiente === config.environment,409,'Esta orden pertenece a otro ambiente.');
       requireValue(!payment.solicitud_mp && (!payment.mp_order_id || ['rechazado','cancelado'].includes(paymentState({status:payment.estado_proveedor}))),409,'El pago aún puede procesarse. Consulta su estado antes de cancelar.');
       await db.query("UPDATE ordenes SET estado='cancelada',actualizado_en=NOW() WHERE id=$1",[order.id]);
     });

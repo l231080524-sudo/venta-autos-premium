@@ -1,10 +1,12 @@
 # Mercado Pago: configuración y pruebas
 
+Esta guía describe Sandbox. Para cobros reales por el total del carrito y comprobantes PDF, sigue [PRODUCCION.md](PRODUCCION.md). Ejecuta también `db/003_produccion.sql` antes de usar esta versión.
+
 La integración usa **Checkout API con Orders y Card Payment Brick**. La tarjeta se captura dentro de la página mediante MercadoPago.js. El backend recibe un token temporal y crea una order en `/v1/orders`; únicamente una consulta autenticada a Mercado Pago puede confirmar el pago. El precio de prueba es **$10 MXN por vehículo seleccionado**, fijado por el servidor.
 
 ## Estado de esta entrega
 
-El código está preparado para Sandbox. Falta colocar tus credenciales, ejecutar las migraciones en la base que utilizarás y realizar compras con las tarjetas de prueba oficiales. Las pruebas automáticas utilizan un proveedor controlado: no prueban tu cuenta ni generan cargos. El PDF se implementará posteriormente. Se conservan referencia, comprador, artículos, importe, fechas, IDs del proveedor y método de pago para ese comprobante.
+El código admite Sandbox y producción. Configura las credenciales del ambiente elegido y ejecuta las migraciones de la base. Las pruebas automáticas utilizan un proveedor controlado: no prueban tu cuenta ni generan cargos. El PDF está disponible para pagos acreditados e indica el ambiente real del pago.
 
 Las pruebas no descuentan inventario ni suman ventas reales. Se limpia del carrito únicamente lo incluido en una orden confirmada. Los precios comerciales del catálogo siguen siendo históricos: el importe mostrado en el checkout de prueba es $10 por vehículo. Con la Visa de prueba, $1 devolvió `empty_installments` antes de enviar el cobro; $10 sí ofreció un pago único. Si otra tarjeta no ofrece planes compatibles, revisa `MP_TEST_UNIT_PRICE` al importe admitido y crea otra orden, porque las existentes conservan su importe original.
 
@@ -109,7 +111,7 @@ Cancelar orden de prueba abandona un borrador o un intento ya rechazado/cancelad
 
 Hay cambios en **backend, frontend público y las solicitudes del administrador**. Será necesario actualizar Render y ambos proyectos Vercel, además de migrar la base elegida. En Render: raíz `venta-autos`, build `npm ci`, start `npm start`, y variables privadas de la tabla. En Vercel público: raíz `venta-autos`, build `npm run build`, salida `dist`; agrega las dos variables `VITE_`. En Vercel admin: raíz `autopremium-admin`, agrega `VITE_API_URL`. Cambiar una variable en Vercel requiere nuevo despliegue.
 
-Para cobros reales habrá una etapa posterior: precios aprobados, gestión transaccional de reserva/stock, política de anticipo o compra completa, pruebas con la cuenta, autenticación bancaria/3DS cuando corresponda, reembolsos y comprobante. Este código bloquea `MP_ENV=produccion`. Los estados de reembolso se reconocen al consultar, pero no hay un botón para solicitarlos ni una conciliación de reembolsos parciales.
+Para cobros reales utiliza [PRODUCCION.md](PRODUCCION.md): un único pago por el total del carrito, autorización explícita y comprobante de pago. Esta demostración no entrega vehículos ni descuenta inventario. Los estados de reembolso se reconocen al consultar, pero no hay un botón para solicitarlos ni una conciliación de reembolsos parciales.
 
 ## Verificación automática
 

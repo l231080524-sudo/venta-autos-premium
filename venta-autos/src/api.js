@@ -28,7 +28,8 @@ export async function downloadReceipt(reference, user) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `comprobante-prueba-${reference}.pdf`;
+  const filename=response.headers.get('content-disposition')?.match(/filename="(comprobante-(?:prueba|produccion)-[a-f0-9-]+\.pdf)"/i)?.[1];
+  link.download = filename || `comprobante-${reference}.pdf`;
   document.body.appendChild(link);
   link.click();
   link.remove();

@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import { pathToFileURL } from 'node:url';
 import { readConfig, createMercadoPago } from './backend/config.js';
 import { createCheckout } from './backend/checkout.js';
-import { requireValue, transaction, hashPassword, verifyPassword, sessionToken, sessionUser } from './backend/core.js';
+import { cents, requireValue, transaction, hashPassword, verifyPassword, sessionToken, sessionUser } from './backend/core.js';
 
 // Copia las variables de .env.example a tu .env privado; en Render usa Environment.
 // Nunca pegues claves en este archivo. Las migraciones SQL se ejecutan por separado.
@@ -13,7 +13,7 @@ dotenv.config();
 export function createApp({ pool, config = readConfig(), mp = createMercadoPago(config) }) {
   const app = express();
   app.disable('x-powered-by');
-  app.use(cors({ origin: config.origins, methods: ['GET','POST','PUT','DELETE'], allowedHeaders: ['Content-Type','Authorization'] }));
+  app.use(cors({ origin: config.origins, methods: ['GET','POST','PUT','DELETE'], allowedHeaders: ['Content-Type','Authorization'], exposedHeaders: ['Content-Disposition'] }));
   app.use(express.json({ limit: '64kb' }));
   app.use('/api', (_req,res,next) => { res.set('Cache-Control','no-store'); next(); });
   const authenticate = async (req,res,next) => {
@@ -64,12 +64,14 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
   app.get('/api/vehiculos',async (_req,res) => res.json((await pool.query('SELECT * FROM vehiculos ORDER BY precio')).rows));
   app.post('/api/vehiculos',...admin,async (req,res) => {
     const {marca,modelo,anio,precio,categoria,imagen,descripcion,stock,especificaciones}=req.body;
+    requireValue(cents(precio)>0,400,'El precio debe ser mayor que cero y tener como máximo dos decimales.');
     await pool.query(`INSERT INTO vehiculos(marca,modelo,anio,precio,categoria,imagen,descripcion,stock,especificaciones)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,[marca,modelo,anio,precio,categoria,imagen,descripcion,stock,especificaciones]);
     res.status(201).json({success:true});
   });
   app.put('/api/vehiculos/:id',...admin,async (req,res) => {
     const allowed=['marca','modelo','anio','precio','categoria','imagen','descripcion','stock','especificaciones'];
+    if (Object.hasOwn(req.body,'precio')) requireValue(cents(req.body.precio)>0,400,'El precio debe ser mayor que cero y tener como máximo dos decimales.');
     const keys=Object.keys(req.body);
     requireValue(keys.length && keys.every(key=>allowed.includes(key)),400,'Campos de vehículo inválidos.');
     await pool.query(`UPDATE vehiculos SET ${keys.map((key,i)=>`${key}=$${i+2}`).join(',')} WHERE id=$1`,[req.params.id,...keys.map(key=>req.body[key])]);

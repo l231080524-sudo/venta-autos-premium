@@ -13,7 +13,7 @@ function loadSDK() {
   return sdkPromise;
 }
 
-export default function MercadoPagoCard({ amount, email, onSubmit }) {
+export default function MercadoPagoCard({ amount, email, publicKey, environment, onSubmit }) {
   const [reload, setReload] = useState(0);
   const id = `mp-card-${useId().replace(/:/g, '')}-${reload}`;
   const [error, setError] = useState('');
@@ -23,7 +23,7 @@ export default function MercadoPagoCard({ amount, email, onSubmit }) {
       try {
         // PUBLIC KEY del vendedor de prueba, en .env local y Environment de Vercel.
         // Es pública. El Access Token SOLO va en el backend; nunca en este componente.
-        const key = import.meta.env.VITE_MP_PUBLIC_KEY;
+        const key = publicKey || (environment !== 'produccion' ? import.meta.env.VITE_MP_PUBLIC_KEY : '');
         if (!key) throw new Error('Falta configurar la Public Key para mostrar el formulario.');
         await loadSDK();
         if (retired) return;
@@ -39,8 +39,8 @@ export default function MercadoPagoCard({ amount, email, onSubmit }) {
               // No mostrar ni registrar la respuesta cruda: puede contener datos del formulario.
               // empty_installments ocurre antes del cobro si no hay planes para tarjeta/importe.
               setError(sdkError?.message === 'empty_installments'
-                ? 'Mercado Pago no ofrece un pago único para esta tarjeta y este importe. Si la orden es de $1, cancélala y crea otra con el nuevo importe de prueba de $10. Recargar el formulario no cambia el importe de la orden.'
-                : 'No se pudo preparar la información de pago. Revisa los datos de la tarjeta de prueba o recarga el formulario.');
+                ? 'Mercado Pago no ofrece un pago único para esta tarjeta y este importe. Revisa el precio o crea otra orden con un importe compatible. Recargar el formulario no cambia el importe de la orden.'
+                : 'No se pudo preparar la información de pago. Revisa los datos de la tarjeta o recarga el formulario.');
             },
             onSubmit: async (formData, additionalData) => {
               if (submitting) throw new Error('Ya se está procesando este intento.');
@@ -59,11 +59,10 @@ export default function MercadoPagoCard({ amount, email, onSubmit }) {
     }
     mount();
     return () => { retired = true; controller?.unmount(); };
-  }, [id, amount, email, onSubmit]);
+  }, [id, amount, email, publicKey, environment, onSubmit]);
   return <section aria-label="Formulario seguro de tarjeta" className="mt-6 min-w-0">
-    <h2 className="text-xl font-bold">Tarjeta de prueba</h2>
-    <p>Usa los datos de las tarjetas de prueba de Mercado Pago y el correo {email}.</p>
-    <p>Para simular un pago aprobado, escribe <strong>APRO</strong> en el nombre del titular. No uses el nombre o la contraseña de la cuenta de prueba como datos de tarjeta.</p>
+    <h2 className="text-xl font-bold">{environment==='produccion' ? 'Pagar con tarjeta' : 'Tarjeta de prueba'}</h2>
+    {environment==='produccion' ? <p>Mercado Pago procesará un único cargo de {Number(amount).toLocaleString('es-MX',{style:'currency',currency:'MXN'})} MXN. Usa tu tarjeta y el correo {email}.</p> : <><p>Usa los datos de las tarjetas de prueba de Mercado Pago y el correo {email}.</p><p>Para simular un pago aprobado, escribe <strong>APRO</strong> en el nombre del titular. No uses el nombre o la contraseña de la cuenta de prueba como datos de tarjeta.</p></>}
     {error && <div>
       <p role="alert">{error}</p>
       <button type="button" className="btn-secondary my-3" onClick={() => { setError(''); setReload(value => value + 1); }}>Recargar formulario de tarjeta</button>

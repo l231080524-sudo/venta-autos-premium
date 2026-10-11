@@ -139,6 +139,9 @@ export function validateRemote(remote, order, payment, config) {
   requireValue(String(remote.integration_data?.application_id) === config.applicationId, 502, 'La aplicación de Mercado Pago no coincide.');
   if (payment.ambiente === 'prueba') requireValue(remote.live_mode !== true,
     502, 'Se esperaba una orden de prueba. Revisa las credenciales.');
+  // Orders puede omitir live_mode en GET: el vendedor se comprueba también con /users/me.
+  if (payment.ambiente === 'produccion') requireValue(remote.live_mode !== false && !/^ORDTST/i.test(remote.id),
+    502, 'Una orden Sandbox no puede confirmar un cobro real.');
   if (paymentState(remote) === 'confirmado') requireValue(cents(remote.total_paid_amount) === cents(payment.importe),
     502, 'El importe acreditado no coincide.');
 }

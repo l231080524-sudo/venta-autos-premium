@@ -9,9 +9,10 @@ const date = value => new Intl.DateTimeFormat('es-MX', {
 // Recibe exclusivamente columnas seleccionadas del servidor. Nunca tokens ni respuesta cruda de MP.
 // No requiere claves adicionales: identidad, importes y vehículos proceden del histórico en PostgreSQL.
 export async function createReceipt({ order, payment, items }, issuedAt = new Date()) {
+  const real = payment.ambiente === 'produccion';
   const doc = new PDFDocument({ size: 'A4', margin: 48, bufferPages: true,
     tagged: true, lang: 'es-MX', displayTitle: true,
-    info: { Title: 'AutoPremium - Comprobante de prueba', Author: 'AutoPremium CDMX', CreationDate: issuedAt },
+    info: { Title: real ? 'AutoPremium - Comprobante de pago' : 'AutoPremium - Comprobante de prueba', Author: 'AutoPremium CDMX', CreationDate: issuedAt },
   });
   const chunks = [];
   const result = new Promise((resolve, reject) => {
@@ -43,8 +44,8 @@ export async function createReceipt({ order, payment, items }, issuedAt = new Da
     text(title, { size: 13, bold: true, tag: 'H2' });
   }
   text('AutoPremium CDMX', { size: 24, bold: true, tag: 'H1' });
-  text('COMPROBANTE DE PRUEBA - SANDBOX', { size: 14, bold: true });
-  text('Operación simulada. No representa un cobro real ni una factura fiscal.', { bold: true });
+  text(real ? 'COMPROBANTE DE PAGO' : 'COMPROBANTE DE PRUEBA - SANDBOX', { size: 14, bold: true });
+  text(real ? 'Cobro real por una demostración sin entrega de vehículos. No es una factura fiscal.' : 'Operación simulada. No representa un cobro real ni una factura fiscal.', { bold: true });
   text(`Referencia de la orden: ${order.referencia}`, { size: 10 });
   text(`Emitido: ${date(issuedAt)}`);
   section('Comprador');
@@ -56,17 +57,17 @@ export async function createReceipt({ order, payment, items }, issuedAt = new Da
     room(95);
     text(`${index + 1}. ${item.marca} ${item.modelo}`, { bold: true });
     text(`Año: ${item.anio} | Cantidad: ${item.cantidad}`);
-    text(`Precio unitario de prueba: ${currency(item.precio_unitario)} | Subtotal: ${currency(item.subtotal)}`);
+    text(`Precio unitario${real ? '' : ' de prueba'}: ${currency(item.precio_unitario)} | Subtotal: ${currency(item.subtotal)}`);
   }
   section('Importes de la orden');
-  text(`Concepto: ${order.concepto === 'anticipo' ? 'Anticipo' : 'Compra de prueba'}`);
+  text(`Concepto: ${order.concepto === 'anticipo' ? 'Anticipo' : real ? 'Pago completo de demostración' : 'Compra de prueba'}`);
   text(`Total registrado: ${currency(order.total_vehiculos)}`);
   text(`Importe confirmado: ${currency(payment.importe)}`, { size: 14, bold: true });
   const balance = money(Math.max(0, cents(order.total_vehiculos) - cents(payment.importe)));
   text(`Saldo pendiente de esta orden: ${currency(balance)}`);
-  text('Los importes de Sandbox son de prueba; no corresponden al precio comercial del vehículo.', { size: 10 });
+  if (!real) text('Los importes de Sandbox son de prueba; no corresponden al precio comercial del vehículo.', { size: 10 });
   section('Pago confirmado');
-  text('Proveedor: Mercado Pago | Ambiente: Prueba');
+  text(`Proveedor: Mercado Pago | Ambiente: ${real ? 'Producción' : 'Prueba'}`);
   text(`Estado: Acreditado (${payment.estado_proveedor} / ${payment.detalle_estado_proveedor})`);
   const method = { master: 'Mastercard', visa: 'Visa', amex: 'American Express' }[payment.metodo_pago] || payment.metodo_pago || 'No registrado';
   const type = { credit_card: 'Tarjeta de crédito', debit_card: 'Tarjeta de débito' }[payment.tipo_pago] || payment.tipo_pago || 'No registrado';
@@ -85,7 +86,7 @@ export async function createReceipt({ order, payment, items }, issuedAt = new Da
     doc.page.margins.bottom = 0;
     doc.markContent('Artifact');
     doc.font('Helvetica').fontSize(9).fillColor('#15334D')
-      .text(`AutoPremium CDMX | Sandbox | Página ${i + 1} de ${pages.count}`, 48, doc.page.height - 48,
+      .text(`AutoPremium CDMX | ${real ? 'Cobro real' : 'Sandbox'} | Página ${i + 1} de ${pages.count}`, 48, doc.page.height - 48,
         { width, lineBreak: false, align: 'center' });
     doc.endMarkedContent();
     doc.page.margins.bottom = bottom;

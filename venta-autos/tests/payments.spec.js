@@ -2,14 +2,46 @@ import { test, expect } from '@playwright/test';
 const ref='aabbccdd-1234-4123-8123-aabbccddeeff';
 const user={id:1,nombre:'Cliente de prueba',email:'cliente@example.test',token:'token-falso'};
 const item={id:1,marca:'Marca',modelo:'Modelo',precio:'2500000.00',imagen:'/car.svg'};
+
+test('producción suma precios, exige autorización y usa la clave del servidor para un único cobro',async({page})=> {
+  const items=[{...item,precio:'100.00'},{...item,id:2,modelo:'Segundo',precio:'80.00'}];
+  await page.route('**/api/apartados',route=>route.fulfill({json:items}));
+  await page.route('**/api/mercadopago/config',route=>route.fulfill({json:{ambiente:'produccion',habilitado:true,public_key:'APP_USR-produccion-mock',precio_prueba:'10.00'}}));
+  let paymentCalls=0;
+  const order={referencia:ref,ambiente:'produccion',estado:'pendiente',importe:'180.00',comprador_email:user.email,items:items.map(item=>({...item,subtotal:item.precio})),puede_continuar:true};
+  await page.route('**/api/mercadopago/ordenes/*',route=>route.fulfill({json:order}));
+  await page.route('**/api/mercadopago/ordenes/*/sincronizar',route=>route.fulfill({json:order}));
+  await page.route('**/api/mercadopago/ordenes/*/pagar',route=> {
+    paymentCalls++;const form=route.request().postDataJSON();
+    expect(form.acepto_cobro_real).toBe(true);expect(form.payer.email).toBe(user.email);
+    expect(form).not.toHaveProperty('transaction_amount');
+    return route.fulfill({json:{...order,estado:'confirmado',puede_continuar:false}});
+  });
+  await page.goto('/carrito');
+  await expect(page.getByText('Total: $180.00 MXN')).toBeVisible();
+  await expect(page.getByText('Cobro de prueba:',{exact:false})).toHaveCount(0);
+  await page.getByRole('button',{name:'Continuar al pago'}).click();
+  await page.getByRole('button',{name:'Crear orden',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Enviar tarjeta de prueba'})).toHaveCount(0);
+  await page.getByRole('checkbox',{name:/Autorizo un único cobro real/}).check();
+  await expect(page.getByRole('heading',{name:'Pagar con tarjeta'})).toBeVisible();
+  expect(await page.evaluate(()=>window.mpPublicKey)).toBe('APP_USR-produccion-mock');
+  await expect(page.getByText(/Para simular un pago aprobado/)).toHaveCount(0);
+  await page.getByRole('button',{name:'Enviar tarjeta de prueba'}).click();
+  await expect(page.getByRole('heading',{name:'Pago confirmado',exact:true})).toBeVisible();
+  expect(paymentCalls).toBe(1);
+  await expect(page.getByText('Operación Sandbox: no es una compra real.')).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Descargar comprobante PDF'})).toBeVisible();
+});
 test.beforeEach(async({page})=> {
   await page.addInitScript(user=> {
     localStorage.setItem('usuario_premium',JSON.stringify(user));
     // Sustituye el SDK externo: ningún dato ni solicitud de pago llega a Mercado Pago.
     window.MercadoPago=class {
+      constructor(key) {window.mpPublicKey=key;}
       bricks() {return {create:async(_type,id,settings)=> {
         const button=document.createElement('button');button.textContent='Enviar tarjeta de prueba';
-        button.onclick=()=>settings.callbacks.onSubmit({token:'token-falso-test',payment_method_id:'visa',installments:1,payer:{email:'comprador@testuser.com',identification:{type:'CURP',number:'TEST123'}}},{paymentTypeId:'credit_card'}).catch(()=>{});
+        button.onclick=()=>settings.callbacks.onSubmit({token:'token-falso-test',payment_method_id:'visa',installments:1,payer:{email:settings.initialization.payer.email,identification:{type:'CURP',number:'TEST123'}}},{paymentTypeId:'credit_card'}).catch(()=>{});
         document.getElementById(id).appendChild(button);
         const simulateError=document.createElement('button');simulateError.textContent='Simular planes vacíos';
         simulateError.onclick=()=>settings.callbacks.onError({type:'non_critical',cause:'missing_payment_information',message:'empty_installments'});
@@ -93,7 +125,7 @@ test('pago confirmado descarga PDF autenticado y anuncia errores de sesión',asy
   const downloading=page.waitForEvent('download');
   await page.getByRole('button',{name:'Descargar comprobante PDF'}).click();
   const download=await downloading;
-  expect(download.suggestedFilename()).toBe(`comprobante-prueba-${ref}.pdf`);
+  expect(download.suggestedFilename()).toBe(`comprobante-${ref}.pdf`);
   expect(await download.failure()).toBeNull();
   expect(receiptAuthorization).toBe('Bearer token-falso');
   await expect(page.getByRole('status').filter({hasText:'Comprobante preparado'})).toBeVisible();

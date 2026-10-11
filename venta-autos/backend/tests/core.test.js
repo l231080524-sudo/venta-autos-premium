@@ -112,6 +112,24 @@ test('rechazo 402 envuelto en data conserva el ID para consultar y cancelar',asy
 });
 test('cuenta real o país incorrecto no recibe ninguna creación de pago', async () => {
   const mp = createMercadoPago({ accessToken: 'prueba', sellerId: '5' }, async () => ({ ok: true, status: 200, json: async () => ({ id: 5, site_id: 'MLM', tags: [] }) }));
-  await assert.rejects(mp.assertTestSeller());
+  await assert.rejects(mp.assertSeller());
   assert.throws(() => assertCheckoutConfig(readConfig({ MP_ENABLED: 'true', MP_ENV: 'produccion' })));
+});
+
+test('producción exige claves, vendedor real mexicano y rechaza órdenes Sandbox', async () => {
+  const config=readConfig({MP_ENABLED:'true',MP_ENV:'produccion',MP_ACCESS_TOKEN:'APP_USR-test',MP_PUBLIC_KEY:'APP_USR-public',MP_WEBHOOK_SECRET:'secret',MP_SELLER_ID:'5',MP_APPLICATION_ID:'9',AUTH_SECRET:secret});
+  assert.doesNotThrow(()=>assertCheckoutConfig(config));
+  for(const change of [{publicKey:''},{webhookSecret:''},{accessToken:'TEST-token'},{environment:'otro'}]) assert.throws(()=>assertCheckoutConfig({...config,...change}));
+  for(const account of [{id:5,site_id:'MLM',tags:['test_user']},{id:6,site_id:'MLM',tags:[]},{id:5,site_id:'MLA',tags:[]}]) {
+    const mp=createMercadoPago(config,async()=>({ok:true,json:async()=>account}));
+    await assert.rejects(mp.assertSeller());
+  }
+  const mp=createMercadoPago(config,async()=>({ok:true,json:async()=>({id:5,site_id:'MLM',tags:[]})}));
+  await assert.doesNotReject(mp.assertSeller());
+  const order={referencia:'ref',moneda:'MXN',importe_a_cobrar:'180.00'};
+  const payment={mp_order_id:'ORD123',ambiente:'produccion',importe:'180.00'};
+  const remote={id:'ORD123',external_reference:'ref',country_code:'MEX',total_amount:'180.00',total_paid_amount:'180.00',user_id:5,integration_data:{application_id:9},status:'processed',status_detail:'accredited'};
+  assert.doesNotThrow(()=>validateRemote(remote,order,payment,config));
+  assert.throws(()=>validateRemote({...remote,live_mode:false},order,payment,config));
+  assert.throws(()=>validateRemote({...remote,id:'ORDTST123'},order,{...payment,mp_order_id:'ORDTST123'},config));
 });
