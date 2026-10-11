@@ -31,7 +31,7 @@ export default function SiteHeader({ usuario, carritoCount, logout, setModalAuth
   }, []);
 
   useEffect(() => {
-    document.title = `${pathname === '/catalogo' ? 'Catálogo' : pathname === '/carrito' ? 'Carrito' : 'Inicio'} | AutoPremium CDMX`;
+    document.title = `${pathname === '/catalogo' ? 'Catálogo' : pathname === '/carrito' ? 'Carrito' : pathname.startsWith('/pago/') ? 'Estado del pago' : 'Inicio'} | AutoPremium CDMX`;
     if (previousKey.current === key && !hash) return;
     // Location keys also change when the user clicks the current route again.
     const frame = requestAnimationFrame(() => {

@@ -44,10 +44,6 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
         throw new Error('El servidor respondió, pero no se encontraron los datos del usuario.');
       }
 
-      if (usuarioLogueado.email.endsWith('@autopremium.com')) {
-        usuarioLogueado.rol = 'admin';
-      }
-
       onLogin(usuarioLogueado);
 
       setModalAuth({ abierto: false, modoRegistro: false });
@@ -109,6 +105,7 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
                 <input id="auth-password" name="auth-password" autoComplete={esRegistro ? "new-password" : "current-password"}
                 required
                 type="password"
+                minLength={esRegistro ? 8 : undefined}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"

@@ -9,6 +9,8 @@ import Home from './pages/Home';
 import CatalogoUnico from './pages/CatalogoUnico';
 import Carrito from './pages/Carrito';
 import AuthModal from './components/AuthModal';
+import PagoResultado from './pages/PagoResultado';
+import { authHeaders } from './api';
 
 export default function App() {
   // 🚀 INYECCIÓN DE LA VARIABLE DE ENTORNO
@@ -32,7 +34,7 @@ export default function App() {
     }
     try {
       // 🚀 SE REEMPLAZÓ LOCALHOST AQUÍ
-      const response = await fetch(`${API_URL}/api/apartados?usuario_id=${usuario.id}`);
+      const response = await fetch(`${API_URL}/api/apartados`, { headers: authHeaders(usuario) });
       if (response.ok) {
         const data = await response.json();
         setCarritoCount(data.length);
@@ -61,7 +63,7 @@ export default function App() {
   };
 
   const agregarAlCarrito = async (vehiculoId) => {
-    if (!usuario) {
+    if (!usuario?.token) {
       setModalAuth({ abierto: true, modoRegistro: false });
       return;
     }
@@ -69,7 +71,7 @@ export default function App() {
       // 🚀 SE REEMPLAZÓ LOCALHOST AQUÍ
       const response = await fetch(`${API_URL}/api/apartados`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders(usuario) },
         body: JSON.stringify({ usuario_id: usuario.id, vehiculo_id: vehiculoId })
       });
       const data = await response.json();
@@ -99,6 +101,7 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/catalogo" element={<CatalogoUnico agregarAlCarrito={agregarAlCarrito} />} />
         <Route path="/carrito" element={<Carrito key={usuario?.id || "invitado"} usuario={usuario} setModalAuth={setModalAuth} actualizarConteoCarrito={actualizarConteoCarrito} />} />
+        <Route path="/pago/:referencia" element={<PagoResultado usuario={usuario} setModalAuth={setModalAuth} actualizarConteoCarrito={actualizarConteoCarrito} />} />
 
         {/* Redirección de seguridad */}
         <Route path="*" element={<Navigate to="/" replace />} />

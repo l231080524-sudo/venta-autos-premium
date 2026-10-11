@@ -1,5 +1,20 @@
 import React, { useState, useEffect } from 'react';
 
+// Sesión emitida por el backend: el servidor comprueba el rol en PostgreSQL.
+// El administrador usa la misma API y AUTH_SECRET que la página pública.
+async function adminFetch(url, options = {}) {
+  let session;
+  try { session = JSON.parse(localStorage.getItem('admin_session')); } catch { session = null; }
+  const response = await fetch(url, { ...options, headers: {
+    ...options.headers, ...(session?.token ? { Authorization: `Bearer ${session.token}` } : {}),
+  } });
+  if (response.status === 401 && !url.endsWith('/api/auth/login')) {
+    localStorage.removeItem('admin_session');
+    throw new Error('Tu sesión venció. Cierra sesión y vuelve a iniciar sesión.');
+  }
+  return response;
+}
+
 // ==========================================
 // COMPONENTE: TARJETA DE EDICIÓN DE AUTO
 // ==========================================
@@ -155,7 +170,8 @@ export default function App() {
   const [adminUser, setAdminUser] = useState(() => {
     try {
       const guardado = localStorage.getItem('admin_session');
-      return guardado ? JSON.parse(guardado) : null;
+      const session = guardado ? JSON.parse(guardado) : null;
+      return session?.token ? session : null;
     } catch (e) { return null; }
   });
 
@@ -212,7 +228,7 @@ export default function App() {
 
       // VALIDACIÓN INCLUYENDO EL NUEVO ROL
       const rolesPermitidos = ['admin', 'superadmin', 'admin_restringido'];
-      const esAdminReal = rolesPermitidos.includes(usuarioLogueado.rol) || usuarioLogueado.email.endsWith('@autopremium.com');
+      const esAdminReal = rolesPermitidos.includes(usuarioLogueado.rol) && usuarioLogueado.token;
 
       if (!esAdminReal) {
         throw new Error('ACCESO DENEGADO. Nivel de autorización insuficiente.');
@@ -238,8 +254,8 @@ export default function App() {
     try {
       setLoadingDatos(true);
       const [resVehiculos, resUsuarios] = await Promise.all([
-        fetch(`${API_URL}/api/vehiculos`).catch(() => null),
-        fetch(`${API_URL}/api/usuarios`).catch(() => null) 
+        adminFetch(`${API_URL}/api/vehiculos`),
+        adminFetch(`${API_URL}/api/usuarios`)
       ]);
 
       if (resVehiculos && resVehiculos.ok) setVehiculos(await resVehiculos.json());
@@ -268,7 +284,7 @@ export default function App() {
     specsInput.forEach(s => { if (s.clave.trim()) especificaciones[s.clave.trim()] = s.valor.trim(); });
     const payload = { marca, modelo, anio: Number(anio), precio: Number(precio), categoria, imagen: imagen || 'https://images.unsplash.com/photo-1617788138017-80ad40651399', descripcion, stock: Number(stock), especificaciones };
     try {
-      const response = await fetch(`${API_URL}/api/vehiculos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const response = await adminFetch(`${API_URL}/api/vehiculos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (response.ok) {
         mostrarMensaje('exito', '🎉 ¡Vehículo añadido!');
         setMarca(''); setModelo(''); setPrecio(''); setImagen(''); setDescripcion(''); setStock(1);
@@ -279,7 +295,7 @@ export default function App() {
 
   const handleSaveVehiculo = async (id, datos) => {
     try {
-      const response = await fetch(`${API_URL}/api/vehiculos/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
+      const response = await adminFetch(`${API_URL}/api/vehiculos/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
       if (response.ok) { mostrarMensaje('exito', '✓ Registro actualizado.'); cargarDatos(); } 
       else { const data = await response.json(); mostrarMensaje('error', data.error); }
     } catch (err) { mostrarMensaje('error', 'Error de conexión.'); }
@@ -288,7 +304,7 @@ export default function App() {
   const eliminarVehiculo = async (id) => {
     if (!window.confirm('¿Eliminar esta unidad del inventario central?')) return;
     try {
-      const response = await fetch(`${API_URL}/api/vehiculos/${id}`, { method: 'DELETE' });
+      const response = await adminFetch(`${API_URL}/api/vehiculos/${id}`, { method: 'DELETE' });
       if (response.ok) { mostrarMensaje('exito', 'Unidad dada de baja.'); cargarDatos(); } 
       else { mostrarMensaje('error', 'No se pudo eliminar.'); }
     } catch (err) { mostrarMensaje('error', 'Error de red.'); }
@@ -301,7 +317,7 @@ export default function App() {
     const correoFinal = `${adminEmailPrefix.trim().toLowerCase()}@autopremium.com`;
 
     try {
-      const response = await fetch(`${API_URL}/api/usuarios/admin`, {
+      const response = await adminFetch(`${API_URL}/api/usuarios/admin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: adminNombre, email: correoFinal, password: adminPass })
@@ -318,7 +334,7 @@ export default function App() {
 
   const handleSaveUsuario = async (id, datos) => {
     try {
-      const response = await fetch(`${API_URL}/api/usuarios/${id}`, {
+      const response = await adminFetch(`${API_URL}/api/usuarios/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(datos)
@@ -337,7 +353,7 @@ export default function App() {
   const eliminarUsuario = async (id) => {
     if (!window.confirm('¿Estás seguro de que deseas REVOCAR EL ACCESO a este usuario permanentemente?')) return;
     try {
-      const response = await fetch(`${API_URL}/api/usuarios/${id}`, { method: 'DELETE' });
+      const response = await adminFetch(`${API_URL}/api/usuarios/${id}`, { method: 'DELETE' });
       if (response.ok) { mostrarMensaje('exito', 'Cuenta revocada exitosamente.'); cargarDatos(); } 
       else { const data = await response.json(); mostrarMensaje('error', data.error || 'Error al revocar cuenta.'); }
     } catch (err) { mostrarMensaje('error', 'Error de red.'); }
@@ -352,7 +368,7 @@ export default function App() {
     if (!window.confirm('¿Estás seguro de que deseas degradar/eliminar a este cliente?')) return;
     
     try {
-      const response = await fetch(`${API_URL}/api/usuarios/${id}`, { method: 'DELETE' });
+      const response = await adminFetch(`${API_URL}/api/usuarios/${id}`, { method: 'DELETE' });
       if (response.ok) { 
         mostrarMensaje('exito', 'Cliente degradado exitosamente.'); 
         cargarDatos(); 
@@ -365,8 +381,8 @@ export default function App() {
 
   // FILTROS INTELIGENTES (Actualizados para excluir/incluir al admin_restringido)
   const vehiculosFiltrados = vehiculos.filter(car => car.marca?.toLowerCase().includes(busqueda.toLowerCase()) || car.modelo?.toLowerCase().includes(busqueda.toLowerCase()));
-  const clientesFiltrados = usuariosDb.filter(u => !['admin', 'superadmin', 'admin_restringido'].includes(u.rol) && !u.email?.toLowerCase().endsWith('@autopremium.com'));
-  const adminsFiltrados = usuariosDb.filter(u => ['admin', 'superadmin', 'admin_restringido'].includes(u.rol) || u.email?.toLowerCase().endsWith('@autopremium.com'));
+  const clientesFiltrados = usuariosDb.filter(u => !['admin', 'superadmin', 'admin_restringido'].includes(u.rol));
+  const adminsFiltrados = usuariosDb.filter(u => ['admin', 'superadmin', 'admin_restringido'].includes(u.rol));
 
   const agregarSpec = () => setSpecsInput([...specsInput, { clave: '', valor: '' }]);
   const cambiarSpec = (index, campo, valor) => {

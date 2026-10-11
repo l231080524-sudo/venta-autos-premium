@@ -7,14 +7,16 @@ const cars = ['gasolina', 'hibrido', 'electrico', 'superdeportivo'].map((categor
   descripcion: 'Vehículo de prueba con una descripción completa y legible.',
   especificaciones: { motor: 'Motor de prueba', potencia: '470 HP', transmision: 'Automática de ocho velocidades' },
 }));
-const user = { id: 999, nombre: 'Cliente de prueba', email: 'prueba@example.test' };
+const user = { id: 999, nombre: 'Cliente de prueba', email: 'prueba@example.test', token: 'sesion-simulada-sin-valor-real' };
 
 test.beforeEach(async ({ page }) => {
   // Every non-local request is intercepted, including any mutation, so tests never reach production.
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.pathname.startsWith('/api/')) {
-      const body = url.pathname === '/api/vehiculos' ? cars : url.pathname.startsWith('/api/auth/') ? { usuario: user } : cars.slice(0, 2);
+      const body = url.pathname === '/api/vehiculos' ? cars : url.pathname.startsWith('/api/auth/') ? { usuario: user }
+        : url.pathname === '/api/mercadopago/config' ? { habilitado: true, ambiente: 'prueba', precio_prueba: '1.00', comprador_prueba_email: 'comprador@testuser.com' }
+        : url.pathname === '/api/mercadopago/ordenes' ? [] : cars.slice(0, 2);
       return route.fulfill({ json: body });
     }
     if (url.hostname === '127.0.0.1') return route.continue();
@@ -154,21 +156,21 @@ test('preferencias persistentes, filtros y stock', async ({ page }) => {
   await expect(page.getByRole('button', { name: /Sin existencias:/ })).toBeDisabled();
 });
 
-test('carrito: selección y ventana de simulación accesible sin enviar pagos', async ({ page }) => {
+test('carrito: selección y confirmación de prueba accesible sin enviar pagos', async ({ page }) => {
   await page.addInitScript(user => localStorage.setItem('usuario_premium', JSON.stringify(user)), user);
   await page.goto('/carrito');
   await expect(page.getByRole('checkbox')).toHaveCount(2);
   await page.getByRole('button', { name: 'Deseleccionar todos' }).click();
-  await expect(page.getByRole('button', { name: 'Liquidar Selección' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Continuar al pago' })).toBeDisabled();
   await page.getByRole('checkbox').first().check();
-  await page.getByRole('button', { name: 'Liquidar Selección' }).click();
-  await expect(page.getByRole('dialog', { name: 'Simulación de pago' })).toBeVisible();
+  await page.getByRole('button', { name: 'Continuar al pago' }).click();
+  await expect(page.getByRole('dialog', { name: 'Confirmar pago de prueba' })).toBeVisible();
   await audit(page);
   await page.setViewportSize({ width: 320, height: 800 });
   await page.evaluate(() => document.documentElement.style.fontSize = '200%');
   expect(await page.getByRole('dialog').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('button', { name: 'Liquidar Selección' })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Continuar al pago' })).toBeFocused();
 });
 
 test('errores de catálogo y de acceso se anuncian con texto', async ({ page }) => {
@@ -192,8 +194,10 @@ test('historial de compras: lectura accesible sin modificar datos', async ({ pag
     localStorage.setItem(`compras_${user.id}`, JSON.stringify([{ idTransaccion: 'PRUEBA-001', fecha: '10 de octubre de 2026', items: [cars[0]], total: 2900000, subtotal: 2500000, iva: 400000, tema: 'gasolina', cliente: user.nombre }]));
   }, { user, cars });
   await page.goto('/carrito');
-  await page.getByRole('button', { name: /Compras Realizadas/ }).click();
-  await expect(page.getByRole('heading', { name: 'PRUEBA-001' })).toBeVisible();
+  await page.route('**/api/mercadopago/ordenes',route=>route.fulfill({json:[{referencia:'prueba-001',estado:'confirmado',importe:'1.00',creado_en:'2026-10-10T12:00:00Z',items:[cars[0]]}]}));
+  await page.goto('/carrito');
+  await page.getByRole('button', { name: /Historial de pagos/ }).click();
+  await expect(page.getByRole('heading', { name: 'Pago de prueba confirmado' })).toBeVisible();
   await audit(page);
 });
 

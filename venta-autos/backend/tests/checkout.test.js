@@ -1,0 +1,164 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID, createHmac } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import pg from 'pg';
+import { createApp } from '../../server.js';
+import { sessionToken } from '../core.js';
+
+// Solo base aislada en loopback/55439. Jamás se utiliza DATABASE_URL ni la base del proyecto.
+const url = process.env.TEST_DATABASE_URL;
+test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url }, async t => {
+  const parsed = new URL(url);
+  assert.ok(['127.0.0.1','localhost'].includes(parsed.hostname) && parsed.port === '55439');
+  const schema = `mp_test_${randomUUID().replaceAll('-','')}`;
+  const root = new pg.Pool({ connectionString: url });
+  await root.query(`CREATE SCHEMA ${schema}`);
+  const pool = new pg.Pool({ connectionString: url, options: `-c search_path=${schema},public` });
+  let server;
+  t.after(async () => {
+    if (server) await new Promise(resolve => server.close(resolve));
+    await pool.end();
+    await root.query(`DROP SCHEMA ${schema} CASCADE`);
+    await root.end();
+  });
+  await pool.query(`CREATE TYPE user_role AS ENUM ('cliente','admin');
+    CREATE TYPE car_category AS ENUM ('gasolina','hibrido','electrico','superdeportivo');
+    CREATE TYPE order_status AS ENUM ('pendiente','apartado','cancelado');
+    CREATE TABLE usuarios(id SERIAL PRIMARY KEY,nombre VARCHAR(100),email VARCHAR(150) UNIQUE,password_hash VARCHAR(255),rol user_role DEFAULT 'cliente',telefono VARCHAR(20));
+    CREATE TABLE vehiculos(id SERIAL PRIMARY KEY,marca VARCHAR(50),modelo VARCHAR(100),anio INT,precio NUMERIC(12,2),categoria car_category,imagen TEXT,especificaciones JSONB,descripcion TEXT,stock INT);
+    CREATE TABLE apartados(id SERIAL PRIMARY KEY,usuario_id INT REFERENCES usuarios(id),vehiculo_id INT REFERENCES vehiculos(id),status order_status DEFAULT 'apartado',UNIQUE(usuario_id,vehiculo_id,status));`);
+  for (let pass = 0; pass < 2; pass++) for (const file of ['001_pagos.sql','002_checkout_orders.sql'])
+    await pool.query(await readFile(new URL(`../../db/${file}`,import.meta.url),'utf8'));
+  await pool.query(`INSERT INTO usuarios(nombre,email,password_hash,rol) VALUES
+    ('Uno','uno@example.test','legacy123','cliente'),('Dos','dos@example.test','otra','cliente'),('Admin','admin@example.test','admin123','admin');
+    INSERT INTO vehiculos(marca,modelo,anio,precio,categoria,imagen,especificaciones,stock) VALUES
+    ('Marca','Modelo',2026,3000000,'gasolina','https://example.test/car','{}',5),('Otra','Otro',2026,2000000,'electrico','https://example.test/car2','{}',3);
+    INSERT INTO apartados(usuario_id,vehiculo_id) VALUES (1,1),(2,2);`);
+  const config = { enabled:true,environment:'prueba',testUnitPrice:'1.00',accessToken:'falso',authSecret:'secreto-de-pruebas-'.repeat(3),
+    sellerId:'5',applicationId:'9',buyerEmail:'test@testuser.com',webhookSecret:'webhook-test',origins:[] };
+  const provider = new Map(), keys = [], bodies = [];
+  let clock = Date.now(), loseResponse = false, rejectRequest = false, nextStatus = 'created';
+  const mp = {
+    assertTestSeller: async () => {},
+    create: async (body,key) => {
+      keys.push(key); bodies.push(body);
+      if(rejectRequest) {rejectRequest=false;throw Object.assign(new Error('Solicitud rechazada'),{status:502,definitive:true});}
+      let remote = [...provider.values()].find(value=>value.key===key);
+      if (!remote) {
+        const id=`ORDTEST${provider.size+1}`;
+        remote={id,key,external_reference:body.external_reference,total_amount:body.total_amount,total_paid_amount:'0.00',country_code:'MEX',user_id:'5',integration_data:{application_id:'9'},status:nextStatus,status_detail:'pending',last_updated_date:new Date(++clock).toISOString()};
+        provider.set(id,remote);
+      }
+      if (loseResponse) { loseResponse=false; throw new Error('Respuesta perdida'); }
+      return {...remote};
+    },
+    get: async id => structuredClone(provider.get(id)),
+  };
+  server=createApp({pool,config,mp}).listen(0,'127.0.0.1');
+  await new Promise(resolve=>server.once('listening',resolve));
+  const base=`http://127.0.0.1:${server.address().port}`;
+  async function request(path,body,user=1,method='POST',headers={}) {
+    const response=await fetch(base+path,{method,headers:{'Content-Type':'application/json',Authorization:`Bearer ${sessionToken(user,config.authSecret)}`,...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
+    const result=await response.text(); return {status:response.status,data:result?JSON.parse(result):null};
+  }
+  // Forma real del Brick mexicano: puede no pedir ni entregar identificación.
+  const form={token:'token-falso-de-prueba',payment_method_id:'visa',payment_type_id:'credit_card',installments:1,payer:{email:config.buyerEmail}};
+  const ref=randomUUID(), path=`/api/mercadopago/ordenes/${ref}`;
+  await t.test('sesiones, precio servidor y propiedad del carrito',async()=> {
+    assert.equal((await request('/api/usuarios',undefined,1,'GET')).status,403);
+    assert.equal((await request('/api/apartados',undefined,1,'GET',{Authorization:'Bearer falso'})).status,401);
+    assert.equal((await request('/api/mercadopago/ordenes',{referencia:randomUUID(),apartados_ids:[2]})).status,409);
+    assert.equal((await request('/api/apartados/pagar',{usuario_id:1})).status,410);
+    const created=await request('/api/mercadopago/ordenes',{referencia:ref,apartados_ids:[1],importe:0.01});
+    assert.equal(created.status,201);
+    assert.equal((await request(path,undefined,1,'GET')).data.importe,'1.00');
+    assert.equal((await request(path,undefined,2,'GET')).status,404);
+    const again=await request('/api/mercadopago/ordenes',{referencia:randomUUID(),apartados_ids:[1]});
+    assert.equal(again.data.referencia,ref);
+    assert.equal((await pool.query('SELECT COUNT(*) FROM ordenes')).rows[0].count,'1');
+  });
+  await t.test('documento incompleto se rechaza sin enviar una solicitud al proveedor',async()=> {
+    assert.equal((await request(path+'/pagar',{...form,payer:{...form.payer,identification:{type:'CURP'}}})).status,400);
+    assert.equal(keys.length,0);
+    assert.equal((await pool.query('SELECT solicitud_mp FROM pagos')).rows[0].solicitud_mp,null);
+  });
+  await t.test('sin documento: respuesta perdida, reinicio y concurrencia conservan intento',async()=> {
+    loseResponse=true;
+    assert.equal((await request(path+'/pagar',form)).status,500);
+    const saved=(await pool.query('SELECT solicitud_mp FROM pagos')).rows[0].solicitud_mp;
+    assert.equal(JSON.stringify(saved).includes(form.token),false);
+    assert.equal((await request(path+'/cancelar')).status,409);
+    const recovering=(await request(path,undefined,1,'GET')).data;
+    assert.equal(recovering.puede_recuperar,true);
+    assert.equal(recovering.puede_cancelar,false);
+    const results=await Promise.all([request(path+'/pagar',form),request(path+'/pagar',{...form,token:'otra-token-prueba'})]);
+    assert.ok(results.every(result=>[200,409].includes(result.status)));
+    assert.equal(new Set(keys).size,1);
+    assert.equal(provider.size,1);
+    assert.ok(bodies.every(body=>body.transactions.payments[0].payment_method.token===form.token));
+    assert.ok(bodies.every(body=>!Object.hasOwn(body.payer,'identification')));
+    assert.equal((await pool.query('SELECT solicitud_mp FROM pagos')).rows[0].solicitud_mp,null);
+    assert.equal((await request(path,undefined,1,'GET')).data.puede_recuperar,false);
+    assert.equal((await pool.query('SELECT COUNT(*) FROM apartados WHERE usuario_id=1')).rows[0].count,'1');
+  });
+  await t.test('importe adulterado o retorno falsificado jamás confirma',async()=> {
+    const remote=provider.get('ORDTEST1');
+    remote.status='processed';remote.status_detail='accredited';remote.total_paid_amount='2.00';remote.last_updated_date=new Date(++clock).toISOString();
+    assert.equal((await request(path+'/sincronizar')).status,502);
+    assert.equal((await request(path+'?status=approved',undefined,1,'GET')).data.estado,'pendiente');
+    assert.equal((await pool.query('SELECT COUNT(*) FROM apartados WHERE usuario_id=1')).rows[0].count,'1');
+    remote.status='failed';remote.status_detail='card_insufficient_amount';remote.total_paid_amount='0.00';remote.last_updated_date=new Date(++clock).toISOString();
+    assert.equal((await request(path+'/sincronizar')).data.estado,'rechazado');
+    assert.equal((await request(path,undefined,1,'GET')).data.puede_cancelar,true);
+  });
+  await t.test('tarjeta rechazada admite nuevo intento con nueva clave, sin perder historial',async()=> {
+    assert.equal((await request(path+'/pagar',form)).status,200);
+    assert.equal(provider.size,2);
+    assert.equal(new Set(keys).size,2);
+    assert.equal((await pool.query('SELECT COUNT(*) FROM pagos')).rows[0].count,'2');
+  });
+  await t.test('webhook firmado y repetido confirma una sola vez, no altera inventario',async()=> {
+    const remote=provider.get('ORDTEST2');
+    remote.status='processed';remote.status_detail='accredited';remote.total_paid_amount='1.00';remote.last_updated_date=new Date(++clock).toISOString();
+    remote.transactions={payments:[{id:'PAYTEST2',status:'processed',status_detail:'accredited',amount:'1.00',payment_method:{id:'visa',type:'credit_card',installments:1,token:'NUNCA_GUARDAR'}}]};
+    const body={type:'order',data:{id:remote.id},live_mode:false};
+    assert.equal((await request('/api/mercadopago/webhook?data.id='+remote.id,body)).status,401);
+    const ts=String(Date.now()),requestId='req-webhook',signature=createHmac('sha256',config.webhookSecret).update(`id:${remote.id.toLowerCase()};request-id:${requestId};ts:${ts};`).digest('hex');
+    // Webhook responde texto OK; usamos fetch directamente.
+    const notify=()=>fetch(base+'/api/mercadopago/webhook?data.id='+remote.id,{method:'POST',headers:{'Content-Type':'application/json','x-signature':`ts=${ts},v1=${signature}`,'x-request-id':requestId},body:JSON.stringify(body)});
+    assert.equal((await notify()).status,200); assert.equal((await notify()).status,200);
+    assert.equal((await request(path,undefined,1,'GET')).data.estado,'confirmado');
+    assert.equal((await request(path+'/pagar',form)).status,409);
+    assert.equal((await pool.query('SELECT COUNT(*) FROM apartados WHERE usuario_id=1')).rows[0].count,'0');
+    assert.equal((await pool.query('SELECT COUNT(*) FROM apartados WHERE usuario_id=2')).rows[0].count,'1');
+    assert.equal((await pool.query('SELECT stock FROM vehiculos WHERE id=1')).rows[0].stock,5);
+    assert.equal(JSON.stringify((await pool.query('SELECT transacciones FROM pagos')).rows).includes('NUNCA_GUARDAR'),false);
+    remote.status='created';remote.status_detail='pending';remote.last_updated_date=new Date(clock-1000).toISOString();
+    assert.equal((await request(path+'/sincronizar')).data.estado,'confirmado');
+  });
+  await t.test('login migra contraseña heredada y entrega sesión; email institucional no concede rol',async()=> {
+    const login=await request('/api/auth/login',{email:'uno@example.test',password:'legacy123'});
+    assert.equal(login.status,200);assert.ok(login.data.token);
+    assert.ok((await pool.query('SELECT password_hash FROM usuarios WHERE id=1')).rows[0].password_hash.startsWith('scrypt:'));
+    const signup=await request('/api/auth/registro',{nombre:'Cliente',email:'cliente@autopremium.com',password:'prueba123',telefono:''});
+    assert.equal(signup.data.rol,'cliente');
+  });
+  await t.test('cancelar borrador libera carrito; error definitivo permite otro intento sin inventar confirmación',async()=> {
+    let draft=randomUUID(),draftPath=`/api/mercadopago/ordenes/${draft}`;
+    assert.equal((await request('/api/mercadopago/ordenes',{referencia:draft,apartados_ids:[2]},2)).status,201);
+    assert.equal((await request(draftPath+'/cancelar',undefined,2)).status,200);
+    assert.equal((await request(draftPath,undefined,2,'GET')).data.estado,'cancelado');
+    draft=randomUUID();draftPath=`/api/mercadopago/ordenes/${draft}`;
+    assert.equal((await request('/api/mercadopago/ordenes',{referencia:draft,apartados_ids:[2]},2)).data.referencia,draft);
+    rejectRequest=true;
+    assert.equal((await request(draftPath+'/pagar',form,2)).status,502);
+    assert.equal((await request(draftPath,undefined,2,'GET')).data.estado,'rechazado');
+    assert.equal((await request(draftPath+'/pagar',form,2)).status,200);
+    assert.equal((await request(draftPath+'/cancelar',undefined,2)).status,409);
+    const remote=provider.get('ORDTEST3');
+    remote.status='failed';remote.status_detail='rejected';remote.last_updated_date=new Date(++clock).toISOString();
+    assert.equal((await request(draftPath+'/cancelar',undefined,2)).status,200);
+    assert.equal((await request('/api/apartados/2',undefined,2,'DELETE')).status,200);
+  });
+});

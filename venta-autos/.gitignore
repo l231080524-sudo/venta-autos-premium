@@ -24,6 +24,9 @@ dist-ssr
 *.sw?
 node_modules
 .env
+.env.*
+!.env.example
+.test-postgres*/
 # Browser verification artifacts
 playwright-report/
 test-results/
