@@ -90,14 +90,27 @@ export function sessionUser(token, secret, now = Date.now()) {
   } catch { return null; }
 }
 
-export function validWebhook({ signature, requestId, dataId, secret }) {
-  if (!secret || typeof signature !== 'string' || !requestId || typeof dataId !== 'string') return false;
-  const fields = Object.fromEntries(signature.split(',').map(part => part.trim().split('=')));
-  if (!/^\d+$/.test(fields.ts || '') || !/^[a-f0-9]{64}$/i.test(fields.v1 || '')) return false;
+export function webhookValidation({ signature, requestId, dataId, secret }) {
+  // Solo devuelve motivos de diagnóstico. Nunca devuelve la clave, la firma ni los headers.
+  if (!secret) return { valid: false, reason: 'secreto_ausente' };
+  if (typeof dataId !== 'string' || !dataId) return { valid: false, reason: 'data_id_url_ausente' };
+  if (typeof signature !== 'string' || !signature) return { valid: false, reason: 'x_signature_ausente' };
+  if (typeof requestId !== 'string' || !requestId) return { valid: false, reason: 'x_request_id_ausente' };
+  const pairs = signature.split(',').map(part => part.trim().split('=').map(value => value.trim()));
+  if (pairs.some(pair => pair.length !== 2) || new Set(pairs.map(pair => pair[0])).size !== pairs.length)
+    return { valid: false, reason: 'x_signature_formato_invalido' };
+  const fields = Object.fromEntries(pairs);
+  if (!/^\d+$/.test(fields.ts || '') || !/^[a-f0-9]{64}$/i.test(fields.v1 || ''))
+    return { valid: false, reason: 'x_signature_formato_invalido' };
   // Mercado Pago firma el data.id de la URL en minúsculas, no el ID del cuerpo.
   const manifest = `id:${dataId.toLowerCase()};request-id:${requestId};ts:${fields.ts};`;
   const expected = createHmac('sha256', secret).update(manifest).digest();
-  return timingSafeEqual(expected, Buffer.from(fields.v1, 'hex'));
+  const valid = timingSafeEqual(expected, Buffer.from(fields.v1, 'hex'));
+  return { valid, reason: valid ? 'firma_valida' : 'firma_no_coincide' };
+}
+
+export function validWebhook(args) {
+  return webhookValidation(args).valid;
 }
 
 export function paymentState(remote) {

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
-import { cents, money, sessionToken, sessionUser, hashPassword, verifyPassword, sealRequest, unsealRequest, validWebhook, validateRemote, paymentState, transaction, buyerIdentification } from '../core.js';
+import { cents, money, sessionToken, sessionUser, hashPassword, verifyPassword, sealRequest, unsealRequest, validWebhook, webhookValidation, validateRemote, paymentState, transaction, buyerIdentification } from '../core.js';
 import { createMercadoPago, readConfig, assertCheckoutConfig } from '../config.js';
 const secret = 'solo-pruebas-'.repeat(4);
 
@@ -45,6 +45,23 @@ test('webhook firmado: URL en minúsculas e ID/cabeceras adulterados', () => {
   assert.equal(validWebhook(args), true);
   assert.equal(validWebhook({ ...args, dataId: 'ORDOtra' }), false);
   assert.equal(validWebhook({ ...args, signature: 'ts=1,v1=hola' }), false);
+});
+
+test('diagnóstico de firma: campos ausentes, espacios y componentes duplicados', () => {
+  const ts = '100', requestId = 'req-1', dataId = 'ORDTEST';
+  const v1 = createHmac('sha256', secret).update(`id:ordtest;request-id:${requestId};ts:${ts};`).digest('hex');
+  const args = { secret, requestId, dataId, signature: `ts=${ts},v1=${v1}` };
+  assert.deepEqual(webhookValidation(args), { valid: true, reason: 'firma_valida' });
+  assert.equal(validWebhook({ ...args, signature: `ts = ${ts}, v1 = ${v1}` }), true);
+  for (const [change, reason] of [
+    [{ secret: '' }, 'secreto_ausente'],
+    [{ dataId: undefined }, 'data_id_url_ausente'],
+    [{ signature: undefined }, 'x_signature_ausente'],
+    [{ requestId: undefined }, 'x_request_id_ausente'],
+    [{ signature: `${args.signature},ts=100` }, 'x_signature_formato_invalido'],
+    [{ signature: 'ts=100,v1=mal' }, 'x_signature_formato_invalido'],
+    [{ requestId: 'otro' }, 'firma_no_coincide'],
+  ]) assert.deepEqual(webhookValidation({ ...args, ...change }), { valid: false, reason });
 });
 test('solo processed/accredited confirma; referencias, país, montos y cuenta deben coincidir', () => {
   const order = { referencia: 'ref', moneda: 'MXN', importe_a_cobrar: '1.00' };

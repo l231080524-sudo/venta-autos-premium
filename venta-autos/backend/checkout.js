@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { assertCheckoutConfig } from './config.js';
-import { cents, money, requireValue, transaction, paymentState, validateRemote, validWebhook, sealRequest, unsealRequest, buyerIdentification } from './core.js';
+import { cents, money, requireValue, transaction, paymentState, validateRemote, webhookValidation, sealRequest, unsealRequest, buyerIdentification } from './core.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const orderIdPattern = /^ORD[A-Z0-9]+$/i;
@@ -132,9 +132,28 @@ export function createCheckout({ pool, config, mp, authenticate }) {
   });
 
   router.post('/webhook', async (req, res) => {
+    // Visible en Render > Logs: permite distinguir falta de headers, firma y procesamiento.
+    // No registrar req.body, req.headers, tokens, claves ni datos de tarjeta.
+    const started = Date.now();
+    const queryId = req.query['data.id'];
+    const bodyId = req.body?.data?.id;
+    const diagnostic = {
+      evento: 'mercadopago_webhook',
+      data_id_url_presente: typeof queryId === 'string' && !!queryId,
+      data_id_url_valido: typeof queryId === 'string' && orderIdPattern.test(queryId),
+      data_id_cuerpo_presente: typeof bodyId === 'string' && !!bodyId,
+      ids_coinciden: typeof queryId === 'string' && typeof bodyId === 'string'
+        && queryId.toLowerCase() === bodyId.toLowerCase(),
+      x_signature_presente: !!req.get('x-signature'),
+      x_request_id_presente: !!req.get('x-request-id'),
+    };
+    const validation = webhookValidation({ signature: req.get('x-signature'),
+      requestId: req.get('x-request-id'), dataId: queryId, secret: config.webhookSecret });
+    res.on('finish', () => console.info(JSON.stringify({ ...diagnostic,
+      validacion: validation.reason, http: res.statusCode, duracion_ms: Date.now() - started })));
     requireValue(config.webhookSecret, 503, 'Falta configurar el webhook.');
-    const id = req.query['data.id'];
-    requireValue(orderIdPattern.test(id || '') && validWebhook({ signature: req.get('x-signature'), requestId: req.get('x-request-id'), dataId: id, secret: config.webhookSecret }), 401, 'Firma inválida.');
+    const id = queryId;
+    requireValue(diagnostic.data_id_url_valido && validation.valid, 401, 'Firma inválida.');
     requireValue(String(req.body?.data?.id).toLowerCase() === id.toLowerCase(), 400, 'ID inconsistente.');
     if (!['order', 'orders_v2'].includes(req.body.type)) return res.sendStatus(200);
     requireValue(req.body.live_mode !== true, 400, 'Solo se aceptan eventos de prueba.');
