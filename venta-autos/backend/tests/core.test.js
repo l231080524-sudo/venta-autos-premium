@@ -47,6 +47,19 @@ test('webhook firmado: URL en minúsculas e ID/cabeceras adulterados', () => {
   assert.equal(validWebhook({ ...args, signature: 'ts=1,v1=hola' }), false);
 });
 
+test('Orders: firma oficial conserva el ID en mayúsculas y rechaza alteraciones', () => {
+  const dataId = 'ORDTST01M4MW4DTZBKE9QA19DGB5TV7H';
+  const requestId = 'request-orders', ts = '1742505638683';
+  const v1 = createHmac('sha256', secret)
+    .update(`id:${dataId};request-id:${requestId};ts:${ts};`).digest('hex');
+  const args = { secret, dataId, requestId, signature: `ts=${ts},v1=${v1}` };
+  assert.equal(validWebhook(args), true);
+  assert.equal(validWebhook({ ...args, dataId: dataId + 'X' }), false);
+  assert.equal(validWebhook({ ...args, requestId: 'otro' }), false);
+  assert.equal(validWebhook({ ...args, secret: 'otro' }), false);
+  assert.equal(validWebhook({ ...args, signature: `ts=${Number(ts) + 1},v1=${v1}` }), false);
+});
+
 test('diagnóstico de firma: campos ausentes, espacios y componentes duplicados', () => {
   const ts = '100', requestId = 'req-1', dataId = 'ORDTEST';
   const v1 = createHmac('sha256', secret).update(`id:ordtest;request-id:${requestId};ts:${ts};`).digest('hex');

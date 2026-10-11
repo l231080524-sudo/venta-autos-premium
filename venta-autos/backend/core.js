@@ -102,10 +102,16 @@ export function webhookValidation({ signature, requestId, dataId, secret }) {
   const fields = Object.fromEntries(pairs);
   if (!/^\d+$/.test(fields.ts || '') || !/^[a-f0-9]{64}$/i.test(fields.v1 || ''))
     return { valid: false, reason: 'x_signature_formato_invalido' };
-  // Mercado Pago firma el data.id de la URL en minúsculas, no el ID del cuerpo.
-  const manifest = `id:${dataId.toLowerCase()};request-id:${requestId};ts:${fields.ts};`;
-  const expected = createHmac('sha256', secret).update(manifest).digest();
-  const valid = timingSafeEqual(expected, Buffer.from(fields.v1, 'hex'));
+  // El SDK oficial actual conserva las mayúsculas del data.id de la URL.
+  // También verificamos la forma en minúsculas usada por integraciones anteriores.
+  // Ambas formas EXIGEN un HMAC válido con la clave privada; nunca aceptar solo el cuerpo.
+  const ids = [...new Set([dataId.trim(), dataId.trim().toLowerCase()])];
+  const received = Buffer.from(fields.v1, 'hex');
+  const valid = ids.some(id => {
+    const manifest = `id:${id};request-id:${requestId.trim()};ts:${fields.ts};`;
+    const expected = createHmac('sha256', secret).update(manifest).digest();
+    return timingSafeEqual(expected, received);
+  });
   return { valid, reason: valid ? 'firma_valida' : 'firma_no_coincide' };
 }
 
