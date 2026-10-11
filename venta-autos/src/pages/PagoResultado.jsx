@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { api, formatMoney } from '../api';
+import { api, formatMoney, downloadReceipt } from '../api';
 import MercadoPagoCard from '../components/MercadoPagoCard';
 
 const labels={confirmado:'Pago de prueba confirmado',pendiente:'Pago pendiente',rechazado:'Pago rechazado',en_proceso:'Pago en proceso',cancelado:'Pago cancelado',reembolsado:'Pago reembolsado',reembolso_parcial:'Pago con reembolso parcial'};
@@ -11,6 +11,8 @@ export default function PagoResultado({usuario,setModalAuth,actualizarConteoCarr
   const [error,setError]=useState('');
   const [needsLogin,setNeedsLogin]=useState(false);
   const [busy,setBusy]=useState(false);
+  const [downloading,setDownloading]=useState(false);
+  const [downloadStatus,setDownloadStatus]=useState('');
   const [config,setConfig]=useState(null);
   const refresh=useCallback(async()=> {
     if(!usuario?.token) return;
@@ -44,6 +46,12 @@ export default function PagoResultado({usuario,setModalAuth,actualizarConteoCarr
     catch(err) { setError(err.message);setNeedsLogin(err.status===401); }
     finally { setBusy(false); }
   }
+  async function receipt() {
+    setDownloading(true);setError('');setDownloadStatus('Preparando comprobante PDF…');
+    try { await downloadReceipt(referencia,usuario);setDownloadStatus('Comprobante preparado. Revisa las descargas de tu navegador.'); }
+    catch(err) { setError(err.message);setNeedsLogin(err.status===401);setDownloadStatus(''); }
+    finally { setDownloading(false); }
+  }
   return <section className="max-w-3xl mx-auto px-4 py-12">
     <h1 className="heading-large font-bold mb-6">Estado de tu pago</h1>
     {!usuario?.token ? <><p>Inicia sesión con la cuenta que creó la orden.</p><button className="primary-button mt-4" onClick={()=>setModalAuth({abierto:true,modoRegistro:false})}>Iniciar sesión</button></> : <>
@@ -57,6 +65,13 @@ export default function PagoResultado({usuario,setModalAuth,actualizarConteoCarr
         <p>Referencia: {order.referencia}</p>
         {order.metodo_pago && <p>Método: {order.metodo_pago}</p>}
         {order.confirmado_en && <p>Confirmación: {new Date(order.confirmado_en).toLocaleString('es-MX')}</p>}
+        {order.estado==='confirmado' && <div>
+          <button className="primary-button" disabled={downloading || busy} onClick={receipt}>
+            {downloading ? 'Preparando PDF…' : 'Descargar comprobante PDF'}
+          </button>
+          <p className="mt-2">Comprobante de prueba - Sandbox. Incluye comprador, vehículos, importes y datos del pago.</p>
+          <p role="status" aria-live="polite">{downloadStatus}</p>
+        </div>}
         {order.estado==='rechazado' && <p>No se confirmó el pago. {order.detalle_pago==='rejected_by_issuer' ? 'La tarjeta fue rechazada por el emisor. ' : ''}Para simular una aprobación, usa la tarjeta de prueba y escribe APRO en el nombre del titular.</p>}
         {order.estado==='en_proceso' && <p>El resultado aún no está confirmado. Vuelve a consultar más tarde; no inicies otro cobro.</p>}
         {order.puede_recuperar && <div>

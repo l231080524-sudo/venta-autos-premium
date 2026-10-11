@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { assertCheckoutConfig } from './config.js';
+import { createReceipt } from './receipt.js';
 import { cents, money, requireValue, transaction, paymentState, validateRemote, webhookValidation, sealRequest, unsealRequest, buyerIdentification } from './core.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -214,6 +215,31 @@ export function createCheckout({ pool, config, mp, authenticate }) {
     res.json(await orderView(req.params.referencia, req.user.id));
   });
   router.get('/ordenes/:referencia', async (req, res) => res.json(await orderView(req.params.referencia, req.user.id)));
+  router.get('/ordenes/:referencia/comprobante', async (req, res) => {
+    // La sesión y el propietario se validan en el servidor, aunque alguien copie la URL.
+    // Descargar NO crea ni reintenta pagos. Solo acepta un pago acreditado ya verificado.
+    const receipt = await transaction(pool, async db => {
+      const order = await findOrder(db, req.params.referencia, req.user.id, true);
+      requireValue(order.estado === 'pago_confirmado' && order.pago_confirmado_en, 409, 'El comprobante requiere un pago confirmado.');
+      const payment = (await db.query(`SELECT ambiente, estado_proveedor, detalle_estado_proveedor,
+        importe, moneda, metodo_pago, tipo_pago, cuotas, tarjeta_ultimos_cuatro,
+        mp_order_id, mp_payment_id, confirmado_en FROM pagos
+        WHERE orden_id=$1 ORDER BY id DESC LIMIT 1`, [order.id])).rows[0];
+      requireValue(payment && payment.ambiente === 'prueba' && payment.estado_proveedor === 'processed'
+        && payment.detalle_estado_proveedor === 'accredited' && payment.confirmado_en
+        && payment.mp_order_id && payment.mp_payment_id && payment.moneda === order.moneda
+        && cents(payment.importe) === cents(order.importe_a_cobrar), 409, 'El pago no tiene una acreditación válida para este comprobante.');
+      const items = (await db.query(`SELECT marca, modelo, anio, cantidad, precio_unitario, subtotal
+        FROM orden_detalles WHERE orden_id=$1 ORDER BY id`, [order.id])).rows;
+      requireValue(items.length, 409, 'Faltan los vehículos de la orden.');
+      return { order, payment, items };
+    });
+    const pdf = await createReceipt(receipt);
+    res.set({ 'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="comprobante-prueba-${receipt.order.referencia}.pdf"`,
+      'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+    res.send(pdf);
+  });
   router.post('/ordenes/:referencia/cancelar', async (req,res)=> {
     // Abandonar solo un borrador o un intento rechazado/cancelado, confirmado mediante GET.
     // Un timeout o pago pendiente puede cobrar: no liberarlo por decisión del navegador.

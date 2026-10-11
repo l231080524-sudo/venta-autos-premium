@@ -30,3 +30,5 @@ node_modules
 # Browser verification artifacts
 playwright-report/
 test-results/
+tmp/pdfs/
+output/pdf/

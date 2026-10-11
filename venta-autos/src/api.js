@@ -14,3 +14,23 @@ export async function api(path, user, options = {}) {
   return data;
 }
 export const formatMoney = amount => Number(amount).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+
+export async function downloadReceipt(reference, user) {
+  // El token viaja en Authorization; nunca en la URL del PDF.
+  const response = await fetch(`${API_URL}/api/mercadopago/ordenes/${encodeURIComponent(reference)}/comprobante`, {
+    headers: authHeaders(user),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw Object.assign(new Error(data.error || 'No se pudo descargar el comprobante.'), { status: response.status });
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `comprobante-prueba-${reference}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

@@ -70,11 +70,37 @@ test('URL approved no confirma y error del backend se anuncia; móvil al 200%',a
   await page.route('**/api/mercadopago/ordenes/*/pagar',route=>route.fulfill({status:502,json:{error:'No se pudo verificar el pago.'}}));
   await page.goto(`/pago/${ref}?status=approved`);
   await expect(page.getByRole('heading',{name:'Pago pendiente'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Descargar comprobante PDF'})).toHaveCount(0);
   await page.getByRole('button',{name:'Enviar tarjeta de prueba'}).click();
   await expect(page.getByRole('alert')).toContainText('No se pudo verificar el pago.');
   await expect(page.getByRole('button',{name:'Volver a iniciar sesión'})).toHaveCount(0);
   await expect(page.getByRole('heading',{name:'Pago de prueba confirmado'})).toHaveCount(0);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+});
+
+test('pago confirmado descarga PDF autenticado y anuncia errores de sesión',async({page})=> {
+  let receiptAuthorization;
+  let expired=false;
+  await page.route('**/api/mercadopago/ordenes/**',route=> {
+    if(route.request().url().endsWith('/comprobante')) {
+      receiptAuthorization=route.request().headers().authorization;
+      return expired ? route.fulfill({status:401,json:{error:'Sesión caducada.'}})
+        : route.fulfill({body:Buffer.from('%PDF-1.4\n% descarga de prueba\n%%EOF'),contentType:'application/pdf'});
+    }
+    return route.fulfill({json:{referencia:ref,estado:'confirmado',importe:'10.00',items:[],puede_continuar:false,confirmado_en:'2026-10-11T07:23:24Z'}});
+  });
+  await page.goto(`/pago/${ref}`);
+  const downloading=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Descargar comprobante PDF'}).click();
+  const download=await downloading;
+  expect(download.suggestedFilename()).toBe(`comprobante-prueba-${ref}.pdf`);
+  expect(await download.failure()).toBeNull();
+  expect(receiptAuthorization).toBe('Bearer token-falso');
+  await expect(page.getByRole('status').filter({hasText:'Comprobante preparado'})).toBeVisible();
+  expired=true;
+  await page.getByRole('button',{name:'Descargar comprobante PDF'}).click();
+  await expect(page.getByRole('alert')).toContainText('Sesión caducada.');
+  await expect(page.getByRole('button',{name:'Volver a iniciar sesión'})).toBeVisible();
 });
 
 test('documento inválido no invita a iniciar sesión; sesión caducada sí',async({page})=> {

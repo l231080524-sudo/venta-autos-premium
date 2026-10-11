@@ -74,6 +74,7 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     assert.equal(created.status,201);
     assert.equal((await request(path,undefined,1,'GET')).data.importe,'1.00');
     assert.equal((await request(path,undefined,2,'GET')).status,404);
+    assert.equal((await request(path+'/comprobante',undefined,1,'GET')).status,409);
     const again=await request('/api/mercadopago/ordenes',{referencia:randomUUID(),apartados_ids:[1]});
     assert.equal(again.data.referencia,ref);
     assert.equal((await pool.query('SELECT COUNT(*) FROM ordenes')).rows[0].count,'1');
@@ -136,6 +137,30 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     assert.equal(JSON.stringify((await pool.query('SELECT transacciones FROM pagos')).rows).includes('NUNCA_GUARDAR'),false);
     remote.status='created';remote.status_detail='pending';remote.last_updated_date=new Date(clock-1000).toISOString();
     assert.equal((await request(path+'/sincronizar')).data.estado,'confirmado');
+  });
+  await t.test('comprobante: sesión, propietario y acreditación; descarga no vuelve a cobrar',async()=> {
+    const download = (user=1) => fetch(base+path+'/comprobante', {
+      headers: { Authorization: `Bearer ${sessionToken(user,config.authSecret)}` },
+    });
+    assert.equal((await fetch(base+path+'/comprobante')).status,401);
+    assert.equal((await download(2)).status,404);
+    const before = keys.length;
+    const first = await download();
+    assert.equal(first.status,200);
+    assert.equal(first.headers.get('content-type'),'application/pdf');
+    assert.equal(first.headers.get('cache-control'),'no-store');
+    assert.ok(first.headers.get('content-disposition').includes(ref));
+    assert.ok(Buffer.from(await first.arrayBuffer()).subarray(0,5).equals(Buffer.from('%PDF-')));
+    assert.equal((await download()).status,200);
+    assert.equal(keys.length,before);
+    // Los cambios actuales del catálogo no modifican el histórico utilizado por el PDF.
+    await pool.query("UPDATE vehiculos SET modelo='Modelo actualizado',precio=999 WHERE id=1");
+    const historical=(await pool.query('SELECT modelo,precio_unitario FROM orden_detalles WHERE orden_id=1')).rows[0];
+    assert.equal(historical.modelo,'Modelo');
+    assert.equal(historical.precio_unitario,'1.00');
+    await pool.query("UPDATE pagos SET estado_proveedor='refunded',detalle_estado_proveedor='refunded' WHERE mp_payment_id='PAYTEST2'");
+    assert.equal((await download()).status,409);
+    await pool.query("UPDATE pagos SET estado_proveedor='processed',detalle_estado_proveedor='accredited' WHERE mp_payment_id='PAYTEST2'");
   });
   await t.test('login migra contraseña heredada y entrega sesión; email institucional no concede rol',async()=> {
     const login=await request('/api/auth/login',{email:'uno@example.test',password:'legacy123'});
