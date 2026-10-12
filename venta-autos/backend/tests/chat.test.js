@@ -4,7 +4,7 @@ import express from 'express';
 import { createChat, validateChat, cleanText } from '../chat.js';
 
 const vehicles=[{id:1,marca:'Marca',modelo:'Modelo',precio:'20.00',anio:2025,categoria:'gasolina'}];
-const success=(answer={respuesta:'Consulta este vehículo del catálogo.',vehiculos:[1]})=>({ok:true,json:async()=>({candidates:[{finishReason:'STOP',content:{parts:[{text:JSON.stringify(answer)}]}}]})});
+const success=(answer={respuesta:'Consulta este vehículo del catálogo.',vehiculos:[1],asesor:false})=>({ok:true,json:async()=>({candidates:[{finishReason:'STOP',content:{parts:[{text:JSON.stringify(answer)}]}}]})});
 async function setup(t, options={}) {
   const app=express(); app.use(express.json());
   app.use('/chat',createChat({pool:{query:async sql=>{assert.match(sql,/^SELECT/);assert.doesNotMatch(sql,/usuarios|pagos|ordenes/);return {rows:vehicles};}},env:{GEMINI_API_KEY:'private-test-key'},fetcher:async()=>success(),...options}));
@@ -32,7 +32,7 @@ test('una sola llamada a Gemini, clave privada y precios desde catálogo',async 
   assert.equal(body.vehiculos[0].precio,20);assert.doesNotMatch(JSON.stringify(body),/private-test-key/);assert.equal(calls,1);
 });
 test('rechaza referencias inventadas y respuestas incompletas',async t=>{
-  const post=await setup(t,{fetcher:async()=>success({respuesta:'Inventado',vehiculos:[999]})});
+  const post=await setup(t,{fetcher:async()=>success({respuesta:'Inventado',vehiculos:[999],asesor:false})});
   assert.equal((await post()).status,503);
 });
 test('cuota del proveedor no provoca reintentos ni filtra detalles',async t=>{
@@ -54,4 +54,17 @@ test('un fallo de red tiene salida y permite consultas posteriores',async t=>{
   const post=await setup(t,{fetcher:async()=>{if(++calls===1)throw new Error('private-test-key');return success();}});
   const response=await post();assert.equal(response.status,503);assert.doesNotMatch(await response.text(),/private-test-key/);
   assert.equal((await post()).status,200);
+});
+test('preguntas generales admitidas y petición explícita de asesor no depende de la IA',async t=>{
+  const post=await setup(t,{fetcher:async(_url,request)=>{
+    assert.match(JSON.parse(request.body).systemInstruction.parts[0].text,/preguntas generales/);
+    return success({respuesta:'Puedes contactar al asesor por WhatsApp.',vehiculos:[],asesor:false});
+  }});
+  const response=await post({mensaje:'Quiero hablar con un asesor'});
+  assert.equal(response.status,200);assert.equal((await response.json()).asesor,true);
+});
+test('problema sin resolver deriva al asesor sin repetir llamadas',async t=>{
+  const post=await setup(t,{fetcher:async()=>success({respuesta:'Un asesor puede revisar tu caso.',vehiculos:[],asesor:true})});
+  const response=await post({mensaje:'Ya hice esos pasos y sigue igual'});
+  assert.equal((await response.json()).asesor,true);
 });

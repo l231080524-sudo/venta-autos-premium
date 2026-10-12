@@ -30,3 +30,12 @@ Validación local con proveedor simulado: node --test backend/tests/chat.test.js
 npm run lint:frontend; npm run build; npx playwright test tests/chat.spec.js.
 Tras desplegar, probar una pregunta del catálogo y una de ayuda en la página publicada.
 La prueba local no certifica la clave, modelo ni cuota de la cuenta real.
+
+El asistente también contesta preguntas generales con conocimiento del modelo; no tiene
+búsqueda web y debe reconocer información desconocida o desactualizada. Los datos del
+negocio siempre provienen del catálogo y las instrucciones, sin inventar políticas.
+Si el usuario solicita ayuda humana o el problema de la página persiste, se ofrece el
+asesor. El enlace de WhatsApp siempre está disponible, incluso sin clave o ante cuota
+agotada. Destino fijo autorizado: +52 1 55 6402 8025. Solo prepara un saludo genérico;
+no envía mensajes ni adjunta historial, datos personales o pagos automáticamente.
+El usuario decide enviar el mensaje; no se garantiza disponibilidad del asesor.

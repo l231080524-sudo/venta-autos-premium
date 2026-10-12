@@ -21,4 +21,15 @@ test('fallo del chat libera formulario y mantiene catálogo accesible',async({pa
   await page.getByLabel('Tu pregunta').fill('Hola');await page.getByRole('button',{name:'Enviar',exact:true}).click();
   await expect(page.getByRole('alert')).toContainText('Gemini alcanzó su cuota.');
   await expect(page.getByLabel('Tu pregunta')).toBeEnabled();await expect(page.getByRole('link',{name:'Ver catálogo',exact:true})).toBeVisible();
+  await expect(page.getByRole('link',{name:'Contactar asesor por WhatsApp'})).toHaveAttribute('href',/^https:\/\/wa.me\/5215564028025\?text=/);
+});
+test('deriva al asesor con destino fijo y sin enviar el historial por WhatsApp',async({page})=>{
+  await page.route('**/api/chat/config',r=>r.fulfill({json:{enabled:true}}));
+  await page.route('**/api/chat',r=>r.fulfill({json:{respuesta:'Pide ayuda al asesor.',vehiculos:[],asesor:true}}));
+  await page.goto('/');await page.getByRole('button',{name:'¿Necesitas ayuda?'}).click();
+  await page.getByLabel('Tu pregunta').fill('Mi problema no se resolvió');await page.getByRole('button',{name:'Enviar',exact:true}).click();
+  await expect(page.getByText('Un asesor puede ayudarte a revisar tu caso.',{exact:false})).toBeVisible();
+  const link=page.getByRole('link',{name:'Contactar asesor por WhatsApp'});
+  await expect(link).toHaveAttribute('target','_blank');
+  expect(decodeURIComponent(await link.getAttribute('href'))).not.toContain('Mi problema no se resolvió');
 });
