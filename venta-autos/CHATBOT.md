@@ -39,3 +39,9 @@ asesor. El enlace de WhatsApp siempre está disponible, incluso sin clave o ante
 agotada. Destino fijo autorizado: +52 1 55 6402 8025. Solo prepara un saludo genérico;
 no envía mensajes ni adjunta historial, datos personales o pagos automáticamente.
 El usuario decide enviar el mensaje; no se garantiza disponibilidad del asesor.
+
+Inicio con seis problemas frecuentes: sesión, pago rechazado, cargo sin confirmar,
+comprobante, carrito y entrega. Sus guías son locales y no consumen cuota de Gemini;
+funcionan aunque el proveedor no esté disponible. Se puede continuar con preguntas abiertas.
+El acceso flotante es circular, con un icono SVG de asesor con audífonos y un globo
+«¿Necesitas ayuda?», con animación breve que respeta la preferencia de movimiento reducido.
