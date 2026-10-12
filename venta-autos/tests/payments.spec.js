@@ -3,6 +3,32 @@ const ref='aabbccdd-1234-4123-8123-aabbccddeeff';
 const user={id:1,nombre:'Cliente de prueba',email:'cliente@example.test',token:'token-falso'};
 const item={id:1,marca:'Marca',modelo:'Modelo',precio:'2500000.00',imagen:'/car.svg'};
 
+test('mantiene tarjeta, abre checkout MP y un error no confirma ni esconde tarjeta',async({page})=>{
+  let calls=0;
+  await page.route('**/api/mercadopago/ordenes/*/checkout',route=>{
+    calls++;return route.fulfill({status:502,json:{error:'Checkout no disponible.'}});
+  });
+  await page.goto(`/pago/${ref}`);
+  await expect(page.getByRole('button',{name:'Pagar con Mercado Pago',exact:false})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Enviar tarjeta de prueba'})).toBeVisible();
+  await page.getByRole('button',{name:'Pagar con Mercado Pago',exact:false}).click();
+  await expect(page.getByRole('alert')).toContainText('Checkout no disponible.');
+  expect(calls).toBe(1);
+  await expect(page.getByRole('heading',{name:'Pago pendiente'})).toBeVisible();
+  await page.screenshot({path:'test-results/payment-options.png',fullPage:true});
+});
+test('botón Mercado Pago redirige al checkout devuelto por el servidor sin enviar tarjeta',async({page})=>{
+  const url='https://www.mercadopago.com.mx/checkout/v1/redirect?order_id=ORDTEST123';
+  await page.route('https://www.mercadopago.com.mx/checkout/**',route=>route.fulfill({contentType:'text/html',body:'<h1>Checkout simulado</h1>'}));
+  await page.route('**/api/mercadopago/ordenes/*/checkout',route=>{
+    expect(route.request().postDataJSON()).toEqual({acepto_cobro_real:false});
+    return route.fulfill({json:{checkout_url:url,orden:{referencia:ref,estado:'pendiente',ambiente:'prueba',importe:'10.00',items:[],checkout_externo:true,puede_continuar:false}}});
+  });
+  await page.goto(`/pago/${ref}`);
+  await page.getByRole('button',{name:'Pagar con Mercado Pago',exact:false}).click();
+  await expect(page).toHaveURL(url);await expect(page.getByRole('heading',{name:'Checkout simulado'})).toBeVisible();
+});
+
 test('producción suma precios, exige autorización y usa la clave del servidor para un único cobro',async({page})=> {
   const items=[{...item,precio:'100.00'},{...item,id:2,modelo:'Segundo',precio:'80.00'}];
   await page.route('**/api/apartados',route=>route.fulfill({json:items}));

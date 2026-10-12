@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { assertCheckoutConfig } from './config.js';
 import { createReceipt } from './receipt.js';
+import { checkoutURL, checkoutBody } from './checkout-pro.js';
 import { cents, money, requireValue, transaction, paymentState, validateRemote, webhookValidation, sealRequest, unsealRequest, buyerIdentification } from './core.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -71,14 +72,16 @@ export function createCheckout({ pool, config, mp, authenticate }) {
       confirmado_en: payment?.confirmado_en, metodo_pago: payment?.metodo_pago,
       mp_order_id: payment?.mp_order_id, mp_payment_id: payment?.mp_payment_id, items,
       detalle_pago: payment?.transacciones?.find(p => p.estado === 'failed')?.detalle,
+      checkout_externo: payment?.metodo_pago === 'checkout_pro' && order.estado === 'pendiente' && ['pendiente','en_proceso'].includes(state),
       puede_recuperar: payment?.ambiente === config.environment && order.estado === 'pendiente' && !!payment?.solicitud_guardada && !payment.mp_order_id,
       puede_cancelar: payment?.ambiente === config.environment && !order.pago_confirmado_en && order.estado === 'pendiente' && !payment?.solicitud_guardada
         && (!payment?.mp_order_id || ['rechazado','cancelado'].includes(state)),
-      puede_continuar: payment?.ambiente === config.environment && !order.pago_confirmado_en && order.estado === 'pendiente' && ['pendiente','rechazado','cancelado'].includes(state),
+      puede_continuar: payment?.ambiente === config.environment && !order.pago_confirmado_en && order.estado === 'pendiente' && ['pendiente','rechazado','cancelado'].includes(state)
+        && !(payment?.metodo_pago === 'checkout_pro' && payment?.mp_order_id && state === 'pendiente'),
     };
   }
 
-  async function submitPayment(reference, userId, form) {
+  async function submitPayment(reference, userId, form, channel = 'tarjeta') {
     assertCheckoutConfig(config);
     await mp.assertSeller();
     // Consulta un intento existente antes de decidir si puede crearse otro.
@@ -88,18 +91,33 @@ export function createCheckout({ pool, config, mp, authenticate }) {
       requireValue(!order.pago_confirmado_en && order.estado === 'pendiente', 409, 'Esta orden ya no admite pagos.');
       let payment = (await db.query('SELECT * FROM pagos WHERE orden_id=$1 ORDER BY id DESC LIMIT 1 FOR UPDATE', [order.id])).rows[0];
       requireValue(payment.ambiente === config.environment, 409, 'Esta orden pertenece a otro ambiente. Crea una nueva desde el carrito.');
+      if (channel === 'mercadopago' && payment.metodo_pago === 'checkout_pro' && payment.mp_order_id
+        && ['pendiente','en_proceso'].includes(paymentState({status:payment.estado_proveedor}))) return;
       if (payment.mp_order_id || payment.detalle_estado_proveedor === 'solicitud_rechazada') {
         requireValue(['rechazado','cancelado'].includes(paymentState({status:payment.estado_proveedor})),409,'El intento anterior aún puede cobrar. Actualiza su estado.');
         payment = (await db.query(`INSERT INTO pagos(orden_id,ambiente,clave_idempotencia,importe)
           VALUES($1,$2,$3,$4) RETURNING *`,[order.id,config.environment,randomUUID(),order.importe_a_cobrar])).rows[0];
       }
-      if (payment.solicitud_mp) return; // Respuesta perdida: conserva token, cuerpo y clave originales.
+      if (payment.solicitud_mp) {
+        const original=unsealRequest(payment.solicitud_mp,config.authSecret);
+        requireValue((channel==='mercadopago' && original.processing_mode==='manual')
+          || (channel==='tarjeta' && (original.processing_mode==='automatic' || !form?.token)),409,'Hay un intento pendiente con otro método. Recupera su resultado antes de cambiar.');
+        return; // Respuesta perdida: conserva cuerpo y clave originales.
+      }
+      requireValue(config.environment !== 'produccion' || form?.acepto_cobro_real === true,400,'Debes autorizar el cobro real por el total de la orden.');
+      if (channel === 'mercadopago') {
+        const details=(await db.query('SELECT marca,modelo,cantidad,precio_unitario FROM orden_detalles WHERE orden_id=$1 ORDER BY id',[order.id])).rows;
+        const body=checkoutBody(order,details,config);
+        const authorization=config.environment==='produccion'?',autorizado_en=NOW()':'';
+        await db.query(`UPDATE pagos SET solicitud_mp=$2,metodo_pago='checkout_pro'${authorization},actualizado_en=NOW() WHERE id=$1`,
+          [payment.id,JSON.stringify(sealRequest(body,config.authSecret))]);
+        return;
+      }
       requireValue(typeof form?.token === 'string' && /^[a-zA-Z0-9_-]{10,256}$/.test(form.token),400,'Token de tarjeta inválido.');
       requireValue(typeof form.payment_method_id === 'string' && /^[a-zA-Z0-9_-]{1,50}$/.test(form.payment_method_id)
         && ['credit_card','debit_card'].includes(form.payment_type_id) && form.installments === 1,400,'Selecciona una tarjeta y un solo pago.');
       const email = config.environment === 'prueba' ? config.buyerEmail : order.comprador_email;
       requireValue(form.payer?.email === email,400,'Utiliza el correo del comprador de esta orden.');
-      requireValue(config.environment !== 'produccion' || form.acepto_cobro_real === true,400,'Debes autorizar el cobro real por el total de la orden.');
       const identification = buyerIdentification(form.payer.identification);
       const details=(await db.query('SELECT marca,modelo,cantidad,precio_unitario FROM orden_detalles WHERE orden_id=$1 ORDER BY id',[order.id])).rows;
       // El importe procede exclusivamente de PostgreSQL. El Brick solo entrega un token temporal.
@@ -223,6 +241,14 @@ export function createCheckout({ pool, config, mp, authenticate }) {
   });
   router.post('/ordenes/:referencia/pagar', async (req, res) => {
     res.json(await submitPayment(req.params.referencia, req.user.id,req.body));
+  });
+  router.post('/ordenes/:referencia/checkout', async (req,res)=> {
+    const view=await submitPayment(req.params.referencia,req.user.id,req.body,'mercadopago');
+    requireValue(view.checkout_externo && view.mp_order_id,409,'El pago ya no admite una redirección. Actualiza su estado.');
+    const remote=await mp.get(view.mp_order_id);
+    requireValue(remote.processing_mode==='manual' && remote.external_reference===req.params.referencia
+      && remote.status==='created',409,'Este intento ya se está procesando. Actualiza su estado.');
+    res.json({checkout_url:checkoutURL(remote.checkout_url,view.mp_order_id),orden:view});
   });
   router.post('/ordenes/:referencia/sincronizar', async (req, res) => {
     assertCheckoutConfig(config);

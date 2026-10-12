@@ -49,3 +49,24 @@ Esta aplicación no inicia reembolsos: se gestionan desde Mercado Pago. Los esta
 La prueba de un cargo real requiere la configuración privada y la autorización del titular; las pruebas automáticas del repositorio usan PostgreSQL aislado y un proveedor simulado, nunca cobran dinero.
 
 Referencias: [credenciales](https://www.mercadopago.com.mx/developers/es/docs/checkout-api-orders/resources/credentials), [consulta de Orders](https://www.mercadopago.com.mx/developers/es/reference/online-payments/checkout-api/get-order/get).
+# Pago con Mercado Pago y tarjeta
+
+La página del pago ofrece un botón «Pagar con Mercado Pago» encima del formulario de
+tarjeta. El backend crea una Orders API en modo manual (Checkout Pro) y devuelve el
+checkout_url oficial de Mercado Pago México. Las tarjetas en la página siguen utilizando
+Orders API en modo automático. Ambos caminos conservan la misma referencia local, monto
+histórico, consentimiento y verificación mediante GET/webhook antes de generar el PDF.
+
+PUBLIC_SITE_URL configura el origen HTTPS del frontend para el retorno; por defecto es
+https://venta-autos-premium-uv3b.vercel.app. No requiere nuevas migraciones ni nuevas claves.
+El evento webhook sigue siendo Order (Mercado Pago), con la URL del backend existente.
+
+Tras iniciar Checkout Pro, vuelve a usar «Continuar en Mercado Pago» o «Actualizar estado»;
+no se ofrece otro cargo mientras el intento pueda procesarse. Los reintentos por red
+conservan cuerpo y clave de idempotencia. No se confirma por los parámetros del retorno.
+La ventana del checkout dura una hora y no permite reintentos de cobro dentro de ese intento.
+
+Verificación local realizada con proveedor simulado. Confirmar la apertura del checkout en
+la aplicación publicada; sus medios disponibles dependen de Mercado Pago y de la cuenta.
+No se ejecutan compras reales como parte de las pruebas automatizadas.
+

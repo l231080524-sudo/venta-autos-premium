@@ -9,6 +9,7 @@ export function readConfig(env = process.env) {
     sellerId: env.MP_SELLER_ID || '',
     applicationId: env.MP_APPLICATION_ID || '',
     publicKey: env.MP_PUBLIC_KEY || '',
+    siteUrl: env.PUBLIC_SITE_URL || 'https://venta-autos-premium-uv3b.vercel.app',
     // Orders exige este correo para tarjetas de prueba; no es el correo personal de la cuenta.
     buyerEmail: env.MP_TEST_BUYER_EMAIL || 'test@testuser.com',
     environment: env.MP_ENV || 'prueba',

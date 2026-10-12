@@ -48,6 +48,8 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
       if (!remote) {
         const id=`ORDTEST${provider.size+1}`;
         remote={id,key,external_reference:body.external_reference,total_amount:body.total_amount,total_paid_amount:'0.00',country_code:'MEX',user_id:'5',integration_data:{application_id:'9'},status:nextStatus,status_detail:'pending',last_updated_date:new Date(++clock).toISOString()};
+        remote.processing_mode=body.processing_mode;
+        if(body.processing_mode==='manual') remote.checkout_url=`https://www.mercadopago.com.mx/checkout/v1/redirect?order_id=${id}`;
         provider.set(id,remote);
       }
       if (loseResponse) { loseResponse=false; throw new Error('Respuesta perdida'); }
@@ -224,5 +226,36 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     const sandbox=await fetch(base+path+'/comprobante',{headers:{Authorization:`Bearer ${sessionToken(1,config.authSecret)}`}});
     assert.equal(sandbox.status,200); assert.ok(sandbox.headers.get('content-disposition').includes('comprobante-prueba-'));
     for(const price of [0,-1,'80.123','NaN']) assert.equal((await request('/api/vehiculos/1',{precio:price},3,'PUT')).status,400);
+  });
+  await t.test('Checkout Pro: autorización, recuperación idempotente, bloqueo de tarjeta y confirmación con PDF',async()=>{
+    const selection=(await pool.query('INSERT INTO apartados(usuario_id,vehiculo_id) VALUES(1,1) RETURNING id')).rows[0].id;
+    const reference=randomUUID(),proPath=`/api/mercadopago/ordenes/${reference}`;
+    assert.equal((await request('/api/mercadopago/ordenes',{referencia:reference,apartados_ids:[selection]})).status,201);
+    const before=keys.length;
+    assert.equal((await request(proPath+'/checkout',{},2)).status,404);
+    assert.equal((await request(proPath+'/checkout',{})).status,400);
+    assert.equal(keys.length,before);
+    loseResponse=true;
+    assert.equal((await request(proPath+'/checkout',{acepto_cobro_real:true,importe:999})).status,500);
+    assert.equal((await request(proPath+'/pagar',{...form,payer:{email:'uno@example.test'},acepto_cobro_real:true})).status,409);
+    const links=await Promise.all([request(proPath+'/checkout',{}),request(proPath+'/checkout',{})]);
+    assert.ok(links.every(result=>result.status===200));
+    assert.equal(keys.at(-1),keys.at(-2));assert.equal(new Set(keys.slice(before)).size,1);
+    assert.equal(bodies.at(-1).processing_mode,'manual');assert.equal(bodies.at(-1).total_amount,'1.00');
+    const remote=[...provider.values()].at(-1);
+    assert.equal(links[0].data.checkout_url,remote.checkout_url);
+    assert.equal((await request(proPath,undefined,1,'GET')).data.puede_continuar,false);
+    assert.equal((await request(proPath+'/cancelar',{})).status,409);
+    assert.equal((await request(proPath+'/pagar',{...form,payer:{email:'uno@example.test'},acepto_cobro_real:true})).status,409);
+    const validURL=remote.checkout_url;remote.checkout_url='https://evil.test/checkout/?order_id='+remote.id;
+    assert.equal((await request(proPath+'/checkout',{})).status,502);remote.checkout_url=validURL;
+    remote.status='processed';remote.status_detail='accredited';remote.total_paid_amount='1.00';remote.live_mode=true;
+    remote.last_updated_date=new Date(++clock).toISOString();
+    remote.transactions={payments:[{id:'PAYWALLET1',status:'processed',status_detail:'accredited',amount:'1.00',payment_method:{id:'account_money',type:'account_money'}}]};
+    assert.equal((await request(proPath+'/sincronizar',{})).data.estado,'confirmado');
+    assert.equal((await request(proPath+'/checkout',{})).status,409);
+    const pdf=await fetch(base+proPath+'/comprobante',{headers:{Authorization:`Bearer ${sessionToken(1,config.authSecret)}`}});
+    assert.equal(pdf.status,200);
+    assert.equal((await pool.query('SELECT count(*) FROM pagos WHERE orden_id=(SELECT id FROM ordenes WHERE referencia=$1)',[reference])).rows[0].count,'1');
   });
 });
