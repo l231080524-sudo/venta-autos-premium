@@ -17,7 +17,7 @@ test('filtro usa precios actuales, filtra y restablece sin cambiar precios',asyn
   await expect(range).toHaveAttribute('max','100');
   await range.fill('80');await expect(page.getByRole('article')).toHaveCount(1);
   await expect(page.getByRole('article').first()).toContainText('$80.00');
-  await expect(page.getByRole('complementary',{name:'Aviso de demostración'})).toContainText('En producción se cobra dinero real');
+  await expect(page.getByRole('complementary',{name:'Aviso de demostración'})).toHaveCount(0);
   await page.getByRole('button',{name:'Restablecer filtros'}).click();await expect(page.getByRole('article')).toHaveCount(2);
 });
 test('historial ofrece PDF autenticado sin crear pagos',async({page})=>{

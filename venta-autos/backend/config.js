@@ -64,6 +64,7 @@ export function createMercadoPago(config, fetcher = fetch) {
   return {
     create: (body, key) => request('/v1/orders', { method: 'POST', headers: { 'X-Idempotency-Key': key }, body: JSON.stringify(body) }),
     get: id => request(`/v1/orders/${encodeURIComponent(id)}`),
+    cancel: (id,key) => request(`/v1/orders/${encodeURIComponent(id)}/cancel`, {method:'POST',headers:{'X-Idempotency-Key':key}}),
     assertSeller: async () => {
       requireValue(['prueba','produccion'].includes(config.environment),503,'Ambiente de Mercado Pago inválido.');
       // Verifica la identidad y el ambiente ANTES de enviar un cobro.

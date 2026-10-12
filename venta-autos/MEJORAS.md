@@ -2,8 +2,8 @@
 
 El filtro de precio utiliza el máximo actual del catálogo y admite centavos. Restablecer
 filtros muestra todas las categorías. Esto no cambia precios ni registros en Neon.
-Catálogo y carrito aclaran que es una demostración, sin entrega, con dinero real en
-producción y operaciones simuladas en prueba. Los precios se etiquetan como demostración.
+Se retiró el aviso grande del catálogo y carrito a petición del usuario. Se mantiene
+la autorización del cobro y la explicación en el pago. Los precios se etiquetan como demostración.
 
 El historial muestra referencia, ambiente, importe, fechas y método cuando existe, y
 permite descargar el PDF de pagos confirmados mediante la sesión del propietario.

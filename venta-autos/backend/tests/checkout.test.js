@@ -41,6 +41,10 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
   let clock = Date.now(), loseResponse = false, rejectRequest = false, nextStatus = 'created';
   const mp = {
     assertSeller: async () => {},
+    cancel: async (id,_key) => {
+      const remote=provider.get(id);remote.status='canceled';remote.status_detail='canceled_transaction';remote.country_code='MX';
+      remote.last_updated_date=new Date(++clock).toISOString();return structuredClone(remote);
+    },
     create: async (body,key) => {
       keys.push(key); bodies.push(body);
       if(rejectRequest) {rejectRequest=false;throw Object.assign(new Error('Solicitud rechazada'),{status:502,definitive:true});}
@@ -246,7 +250,7 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     assert.equal(links[0].data.checkout_url,remote.checkout_url);
     assert.equal((await request(proPath,undefined,1,'GET')).data.puede_continuar,false);
     assert.equal((await request(proPath+'/cancelar',{})).status,409);
-    assert.equal((await request(proPath+'/pagar',{...form,payer:{email:'uno@example.test'},acepto_cobro_real:true})).status,409);
+    assert.equal((await request(proPath+'/pagar',{...form,payer:{email:'uno@example.test'}})).status,400);
     const validURL=remote.checkout_url;remote.checkout_url='https://evil.test/checkout/?order_id='+remote.id;
     assert.equal((await request(proPath+'/checkout',{})).status,502);remote.checkout_url=validURL;
     remote.status='processed';remote.status_detail='accredited';remote.total_paid_amount='1.00';remote.live_mode=true;
@@ -257,5 +261,27 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     const pdf=await fetch(base+proPath+'/comprobante',{headers:{Authorization:`Bearer ${sessionToken(1,config.authSecret)}`}});
     assert.equal(pdf.status,200);
     assert.equal((await pool.query('SELECT count(*) FROM pagos WHERE orden_id=(SELECT id FROM ordenes WHERE referencia=$1)',[reference])).rows[0].count,'1');
+  });
+  await t.test('cambio de Mercado Pago a tarjeta verifica cierre; timeout no crea cobro y reintento es único',async()=>{
+    const selection=(await pool.query('INSERT INTO apartados(usuario_id,vehiculo_id) VALUES(1,1) RETURNING id')).rows[0].id;
+    const reference=randomUUID(),switchPath=`/api/mercadopago/ordenes/${reference}`;
+    await request('/api/mercadopago/ordenes',{referencia:reference,apartados_ids:[selection]});
+    assert.equal((await request(switchPath+'/checkout',{acepto_cobro_real:true})).status,200);
+    const remote=[...provider.values()].at(-1),before=keys.length;
+    const card={...form,payer:{email:'uno@example.test'},acepto_cobro_real:true};
+    const originalCancel=mp.cancel;let cancellations=0;
+    mp.cancel=async(id,key)=>{cancellations++;assert.match(key,/^[a-f0-9-]{36}$/);await originalCancel(id,key);throw new Error('Respuesta de cancelación perdida');};
+    assert.equal((await request(switchPath+'/pagar',{...card,acepto_cobro_real:false})).status,400);
+    assert.equal(cancellations,0);
+    remote.status='processing';remote.last_updated_date=new Date(++clock).toISOString();
+    assert.equal((await request(switchPath+'/pagar',card)).status,409);assert.equal(cancellations,0);
+    remote.status='created';remote.last_updated_date=new Date(++clock).toISOString();
+    assert.equal((await request(switchPath+'/pagar',card)).status,500);assert.equal(keys.length,before);
+    const results=await Promise.all([request(switchPath+'/pagar',card),request(switchPath+'/pagar',card)]);
+    assert.ok(results.every(r=>[200,409].includes(r.status)));assert.equal(keys.length,before+1);assert.equal(cancellations,1);
+    assert.equal(remote.status,'canceled');assert.equal(bodies.at(-1).processing_mode,'automatic');
+    const rows=(await pool.query('SELECT estado_proveedor,mp_order_id FROM pagos WHERE orden_id=(SELECT id FROM ordenes WHERE referencia=$1) ORDER BY id',[reference])).rows;
+    assert.equal(rows.length,2);assert.equal(rows[0].estado_proveedor,'canceled');
+    assert.notEqual(rows[0].mp_order_id,rows[1].mp_order_id);mp.cancel=originalCancel;
   });
 });

@@ -133,7 +133,7 @@ export function validateRemote(remote, order, payment, config) {
   requireValue(remote.id === payment.mp_order_id && remote.external_reference === order.referencia,
     502, 'La referencia de Mercado Pago no coincide.');
   // Orders expresa el país; no todas sus respuestas incluyen currency.
-  requireValue(remote.country_code === 'MEX' && (!remote.currency || remote.currency === order.moneda) && cents(remote.total_amount) === cents(order.importe_a_cobrar),
+  requireValue(['MEX','MX'].includes(remote.country_code) && (!remote.currency || remote.currency === order.moneda) && cents(remote.total_amount) === cents(order.importe_a_cobrar),
     502, 'El importe o moneda de Mercado Pago no coincide.');
   requireValue(String(remote.user_id) === config.sellerId, 502, 'El vendedor de Mercado Pago no coincide.');
   requireValue(String(remote.integration_data?.application_id) === config.applicationId, 502, 'La aplicación de Mercado Pago no coincide.');

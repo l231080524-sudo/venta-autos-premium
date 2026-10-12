@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AccessibleDialog from '../components/AccessibleDialog';
 import { api, formatMoney, downloadReceipt } from '../api';
-import DemoNotice from '../components/DemoNotice';
 
 const stateLabels = { confirmado: 'Pago de prueba confirmado', pendiente: 'Pendiente', rechazado: 'Rechazado', en_proceso: 'En proceso', cancelado: 'Cancelado', reembolsado: 'Reembolsado', reembolso_parcial: 'Reembolso parcial' };
 export default function Carrito({ usuario, setModalAuth, actualizarConteoCarrito }) {
@@ -68,7 +67,6 @@ export default function Carrito({ usuario, setModalAuth, actualizarConteoCarrito
   return <div className="min-h-screen bg-surface text-content px-4 md:px-12 py-12">
     <div className="max-w-7xl mx-auto">
       <h1 className="heading-large font-bold mb-6">Mi carrito y pagos</h1>
-      <DemoNotice />
       {error && <p role="alert" className="bg-panel border border-line rounded-lg p-4 mb-4">{error} {needsLogin && <button onClick={()=>setModalAuth({abierto:true,modoRegistro:false})}>Volver a iniciar sesión</button>}</p>}
       {!usuario?.token ? <section className="bg-panel p-8 rounded-2xl">
         <h2 className="text-xl font-bold">Inicia sesión para continuar</h2>
@@ -110,7 +108,7 @@ export default function Carrito({ usuario, setModalAuth, actualizarConteoCarrito
             <ul>{order.items.map((item,i)=><li key={i}>{item.marca} {item.modelo}</li>)}</ul>
             <p>{formatMoney(order.importe)} MXN · {new Date(order.creado_en).toLocaleString('es-MX')}</p>
             <p className="text-sm">Referencia: {order.referencia}</p>
-            {order.metodo_pago && <p>Método: {order.metodo_pago}</p>}
+            {order.metodo_pago && order.metodo_pago!=='checkout_pro' && <p>Método: {order.metodo_pago}</p>}
             {order.confirmado_en && <p>Confirmado: {new Date(order.confirmado_en).toLocaleString('es-MX')}</p>}
             <Link className="inline-flex min-h-11 items-center underline" to={`/pago/${order.referencia}`}>Ver estado del pago</Link>
             {order.estado==='confirmado' && <button className="primary-button mt-3 w-full" disabled={Boolean(receiptRef)} onClick={()=>receipt(order.referencia)}>{receiptRef===order.referencia?'Preparando PDF…':'Descargar comprobante PDF'}</button>}

@@ -3,6 +3,21 @@ const ref='aabbccdd-1234-4123-8123-aabbccddeeff';
 const user={id:1,nombre:'Cliente de prueba',email:'cliente@example.test',token:'token-falso'};
 const item={id:1,marca:'Marca',modelo:'Modelo',precio:'2500000.00',imagen:'/car.svg'};
 
+test('checkout abierto muestra tarjeta y Mercado Pago, sin código interno',async({page})=>{
+  const order={referencia:ref,estado:'pendiente',ambiente:'produccion',importe:'20.00',comprador_email:user.email,
+    metodo_pago:'checkout_pro',mp_order_id:'ORDOPEN123',items:[],checkout_externo:true,puede_continuar:false,puede_cancelar:false};
+  await page.route('**/api/mercadopago/config',r=>r.fulfill({json:{ambiente:'produccion',habilitado:true,public_key:'APP_USR-mock'}}));
+  await page.route('**/api/mercadopago/ordenes/**',r=>r.fulfill({json:order}));
+  await page.goto(`/pago/${ref}`);
+  await expect(page.getByText('Método: checkout_pro')).toHaveCount(0);
+  await expect(page.getByRole('heading',{name:'Pagar con tarjeta'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Enviar tarjeta de prueba'})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Pagar con Mercado Pago',exact:false})).toBeDisabled();
+  await page.getByRole('checkbox',{name:/Autorizo un único cobro real/}).check();
+  await expect(page.getByRole('button',{name:'Pagar con Mercado Pago',exact:false})).toBeEnabled();
+  await page.screenshot({path:'test-results/card-and-wallet.png'});
+});
+
 test('mantiene tarjeta, abre checkout MP y un error no confirma ni esconde tarjeta',async({page})=>{
   let calls=0;
   await page.route('**/api/mercadopago/ordenes/*/checkout',route=>{
@@ -48,7 +63,10 @@ test('producción suma precios, exige autorización y usa la clave del servidor 
   await expect(page.getByText('Cobro de prueba:',{exact:false})).toHaveCount(0);
   await page.getByRole('button',{name:'Continuar al pago'}).click();
   await page.getByRole('button',{name:'Crear orden',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Enviar tarjeta de prueba'})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Enviar tarjeta de prueba'})).toBeVisible();
+  await page.getByRole('button',{name:'Enviar tarjeta de prueba'}).click();
+  await expect(page.getByRole('alert')).toContainText('Autoriza el cobro real antes de pagar.');
+  expect(paymentCalls).toBe(0);
   await page.getByRole('checkbox',{name:/Autorizo un único cobro real/}).check();
   await expect(page.getByRole('heading',{name:'Pagar con tarjeta'})).toBeVisible();
   expect(await page.evaluate(()=>window.mpPublicKey)).toBe('APP_USR-produccion-mock');

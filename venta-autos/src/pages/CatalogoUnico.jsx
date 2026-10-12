@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import CarCard from '../components/CarCard';
-import DemoNotice from '../components/DemoNotice';
 
 export default function CatalogoUnico({ agregarAlCarrito }) {
 
@@ -58,7 +57,6 @@ export default function CatalogoUnico({ agregarAlCarrito }) {
 
       {/* FILTROS */}
       <section aria-label="Filtros del catálogo" className="relative w-full max-w-[1400px] mx-auto px-4 md:px-8 mb-8">
-        <DemoNotice />
         <div className="bg-surface backdrop-blur-xl p-4 rounded-2xl border border-line flex flex-col xl:flex-row items-center justify-between gap-6">
           <div role="group" aria-label="Categoría del vehículo" className="catalog-category-filters">
             {['todos', 'gasolina', 'hibrido', 'electrico', 'superdeportivo'].map((cat) => (

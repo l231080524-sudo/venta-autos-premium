@@ -61,8 +61,11 @@ PUBLIC_SITE_URL configura el origen HTTPS del frontend para el retorno; por defe
 https://venta-autos-premium-uv3b.vercel.app. No requiere nuevas migraciones ni nuevas claves.
 El evento webhook sigue siendo Order (Mercado Pago), con la URL del backend existente.
 
-Tras iniciar Checkout Pro, vuelve a usar «Continuar en Mercado Pago» o «Actualizar estado»;
-no se ofrece otro cargo mientras el intento pueda procesarse. Los reintentos por red
+Tras iniciar Checkout Pro, siguen visibles «Pagar con Mercado Pago» y el formulario de tarjeta.
+Si el usuario envía una tarjeta autorizada, el servidor cancela el checkout externo y verifica
+su estado mediante GET antes de preparar un nuevo intento. No permite cambiar mientras el pago
+ya se procesa. La cancelación usa una clave determinista por intento; ante un fallo no cobra.
+Los reintentos por red
 conservan cuerpo y clave de idempotencia. No se confirma por los parámetros del retorno.
 La ventana del checkout dura una hora y no permite reintentos de cobro dentro de ese intento.
 

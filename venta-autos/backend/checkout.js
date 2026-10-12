@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { assertCheckoutConfig } from './config.js';
 import { createReceipt } from './receipt.js';
-import { checkoutURL, checkoutBody } from './checkout-pro.js';
+import { checkoutURL, checkoutBody, cancelKey } from './checkout-pro.js';
 import { cents, money, requireValue, transaction, paymentState, validateRemote, webhookValidation, sealRequest, unsealRequest, buyerIdentification } from './core.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -91,6 +91,26 @@ export function createCheckout({ pool, config, mp, authenticate }) {
       requireValue(!order.pago_confirmado_en && order.estado === 'pendiente', 409, 'Esta orden ya no admite pagos.');
       let payment = (await db.query('SELECT * FROM pagos WHERE orden_id=$1 ORDER BY id DESC LIMIT 1 FOR UPDATE', [order.id])).rows[0];
       requireValue(payment.ambiente === config.environment, 409, 'Esta orden pertenece a otro ambiente. Crea una nueva desde el carrito.');
+      if (channel==='tarjeta' && form?.token && payment.metodo_pago==='checkout_pro' && payment.mp_order_id
+        && !['rechazado','cancelado'].includes(paymentState({status:payment.estado_proveedor}))) {
+        // Cambiar a tarjeta SOLO tras envío explícito de un formulario válido y autorización.
+        requireValue(typeof form.token==='string' && /^[a-zA-Z0-9_-]{10,256}$/.test(form.token)
+          && typeof form.payment_method_id==='string' && /^[a-zA-Z0-9_-]{1,50}$/.test(form.payment_method_id)
+          && ['credit_card','debit_card'].includes(form.payment_type_id) && form.installments===1,400,'Revisa los datos de la tarjeta.');
+        requireValue(config.environment!=='produccion' || form.acepto_cobro_real===true,400,'Debes autorizar el cobro real por el total de la orden.');
+        requireValue(form.payer?.email===(config.environment==='prueba'?config.buyerEmail:order.comprador_email),400,'Utiliza el correo del comprador de esta orden.');
+        buyerIdentification(form.payer.identification);
+        let remote=await mp.get(payment.mp_order_id);
+        validateRemote(remote,order,payment,config);
+        requireValue(remote.processing_mode==='manual' && ['created','action_required','canceled'].includes(remote.status),409,'Mercado Pago ya está procesando el pago. Actualiza su estado antes de cambiar de método.');
+        if (remote.status!=='canceled') await mp.cancel(payment.mp_order_id,cancelKey(payment.clave_idempotencia));
+        remote=await mp.get(payment.mp_order_id);
+        validateRemote(remote,order,payment,config);
+        requireValue(remote.status==='canceled',409,'Falta confirmar el cierre de Mercado Pago. No se enviará otro cobro.');
+        await db.query('UPDATE pagos SET estado_proveedor=$2,detalle_estado_proveedor=$3,actualizado_en=NOW() WHERE id=$1',
+          [payment.id,remote.status,remote.status_detail]);
+        payment.estado_proveedor='canceled';
+      }
       if (channel === 'mercadopago' && payment.metodo_pago === 'checkout_pro' && payment.mp_order_id
         && ['pendiente','en_proceso'].includes(paymentState({status:payment.estado_proveedor}))) return;
       if (payment.mp_order_id || payment.detalle_estado_proveedor === 'solicitud_rechazada') {
