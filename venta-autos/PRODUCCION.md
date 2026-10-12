@@ -69,4 +69,3 @@ La ventana del checkout dura una hora y no permite reintentos de cobro dentro de
 Verificación local realizada con proveedor simulado. Confirmar la apertura del checkout en
 la aplicación publicada; sus medios disponibles dependen de Mercado Pago y de la cuenta.
 No se ejecutan compras reales como parte de las pruebas automatizadas.
-
