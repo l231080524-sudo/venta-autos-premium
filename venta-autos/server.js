@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { pathToFileURL } from 'node:url';
 import { readConfig, createMercadoPago } from './backend/config.js';
 import { createCheckout } from './backend/checkout.js';
+import { createChat } from './backend/chat.js';
 import { cents, requireValue, transaction, hashPassword, verifyPassword, sessionToken, sessionUser } from './backend/core.js';
 
 // Copia las variables de .env.example a tu .env privado; en Render usa Environment.
@@ -16,6 +17,7 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
   app.use(cors({ origin: config.origins, methods: ['GET','POST','PUT','DELETE'], allowedHeaders: ['Content-Type','Authorization'], exposedHeaders: ['Content-Disposition'] }));
   app.use(express.json({ limit: '64kb' }));
   app.use('/api', (_req,res,next) => { res.set('Cache-Control','no-store'); next(); });
+  app.use('/api/chat', createChat({ pool }));
   const authenticate = async (req,res,next) => {
     requireValue(config.authSecret.length >= 32, 503, 'Falta configurar AUTH_SECRET en el servidor.');
     const id = sessionUser(req.get('Authorization')?.replace(/^Bearer /,'') || '', config.authSecret);

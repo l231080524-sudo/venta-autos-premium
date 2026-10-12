@@ -10,6 +10,7 @@ import CatalogoUnico from './pages/CatalogoUnico';
 import Carrito from './pages/Carrito';
 import AuthModal from './components/AuthModal';
 import PagoResultado from './pages/PagoResultado';
+import Chatbot from './components/Chatbot';
 import { authHeaders } from './api';
 
 export default function App() {
@@ -109,6 +110,7 @@ export default function App() {
       <Showroom />
       </main>
       <SiteFooter />
+      <Chatbot />
     </BrowserRouter>
   );
 }
