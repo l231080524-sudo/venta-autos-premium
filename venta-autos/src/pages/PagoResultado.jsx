@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { api, formatMoney, downloadReceipt } from '../api';
 import MercadoPagoCard from '../components/MercadoPagoCard';
+import usePaymentTracking from '../usePaymentTracking';
+import { advisorURL } from '../support';
 
 const labels={confirmado:'Pago de prueba confirmado',pendiente:'Pago pendiente',rechazado:'Pago rechazado',en_proceso:'Pago en proceso',cancelado:'Pago cancelado',reembolsado:'Pago reembolsado',reembolso_parcial:'Pago con reembolso parcial'};
 export default function PagoResultado({usuario,setModalAuth,actualizarConteoCarrito}) {
@@ -16,9 +18,12 @@ export default function PagoResultado({usuario,setModalAuth,actualizarConteoCarr
   const [config,setConfig]=useState(null);
   const [consentFor,setConsentFor]=useState('');
   const [redirecting,setRedirecting]=useState(false);
+  const refreshing=useRef(false);
   const consent=consentFor===`${referencia}:${order?.importe}`;
+  const tracking=usePaymentTracking(order,usuario,busy,setOrder,actualizarConteoCarrito);
   const refresh=useCallback(async()=> {
-    if(!usuario?.token) return;
+    if(!usuario?.token || refreshing.current) return;
+    refreshing.current=true;
     setBusy(true); setError(''); setNeedsLogin(false);
     try {
       // Ignora status/approved y cualquier otro parámetro del retorno del navegador.
@@ -29,7 +34,7 @@ export default function PagoResultado({usuario,setModalAuth,actualizarConteoCarr
       const updated=await api(`/api/mercadopago/ordenes/${referencia}/sincronizar`,usuario,{method:'POST'});
       setOrder(updated); actualizarConteoCarrito();
     } catch(err) {setError(err.message);setNeedsLogin(err.status===401);}
-    finally {setBusy(false);}
+    finally {refreshing.current=false;setBusy(false);}
   },[referencia,usuario,actualizarConteoCarrito]);
   useEffect(()=> {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -90,6 +95,11 @@ export default function PagoResultado({usuario,setModalAuth,actualizarConteoCarr
         </div>}
         {order.estado==='rechazado' && <p>No se confirmó el pago. {order.detalle_pago==='rejected_by_issuer' ? 'La tarjeta fue rechazada por el emisor. ' : ''}{order.ambiente==='produccion' ? 'Consulta con tu banco o intenta con otra tarjeta.' : 'Para simular una aprobación, usa la tarjeta de prueba y escribe APRO en el nombre del titular.'}</p>}
         {order.estado==='en_proceso' && <p>El resultado aún no está confirmado. Vuelve a consultar más tarde; no inicies otro cobro.</p>}
+        {tracking.watching && <div className="border border-line rounded-xl p-4">
+          <p role="status">{tracking.stopped?'Terminó el seguimiento automático. Puedes actualizar el estado manualmente o pedir ayuda.':'Estamos revisando este intento automáticamente, hasta seis consultas. No se realizará otro cobro.'}</p>
+          <p className="text-sm">Consultas automáticas: {tracking.count} de 6.</p>
+          {tracking.stopped && <a className="inline-flex min-h-11 items-center underline" href={advisorURL} target="_blank" rel="noopener noreferrer">Pedir ayuda al asesor por WhatsApp</a>}
+        </div>}
         {order.puede_recuperar && <div>
           <p>Falta recuperar el resultado del intento enviado. Este botón reutiliza exactamente la solicitud original; no inicia un segundo cobro. Antes de cancelar, hay que conocer su resultado.</p>
           <button disabled={busy} onClick={()=>pay({}).catch(()=>{})}>Recuperar resultado del intento</button>

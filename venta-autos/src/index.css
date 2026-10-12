@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Espacio para acceder a los enlaces sin que el asistente flotante los cubra. */
+.footer-bottom { padding-bottom: 5rem; }
+
 @theme {
   --font-sans: Arial, Helvetica, sans-serif;
   --font-ui: Arial, Helvetica, sans-serif;

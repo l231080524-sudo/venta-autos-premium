@@ -27,7 +27,7 @@ export default function CarCard({ car, agregarAlCarrito }) {
         <h3 id={`car-${car.id}`}>{name}</h3>
         <p className="text-muted">Año {car.anio} · {available ? 'Disponible' : 'Sin existencias'}</p>
         <div className="car-purchase">
-          <p><span className="text-muted">Precio de lista</span><strong>{Number(car.precio).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })} MXN</strong></p>
+          <p><span className="text-muted">Precio de demostración</span><strong>{Number(car.precio).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })} MXN</strong></p>
           <button className="primary-button" disabled={!available || pending} aria-label={`${pending ? 'Apartando' : available ? 'Apartar' : 'Sin existencias:'} ${name}`}
             onClick={async () => { setPending(true); try { await agregarAlCarrito(car.id); } finally { setPending(false); } }}>
             {pending ? 'Apartando…' : available ? 'Apartar' : 'Sin existencias'}

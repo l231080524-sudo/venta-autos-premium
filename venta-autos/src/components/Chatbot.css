@@ -17,6 +17,8 @@
 .chat-topics{display:flex;flex-direction:column;gap:6px;margin:10px 0 16px}.chat-topics button{text-align:left;border:1px solid #a6bfd4;border-radius:9px;background:#fff;color:#163f69;padding:10px 12px;min-height:44px;font:inherit;font-size:13px;cursor:pointer}.chat-topics button:hover{background:#e4eff8}
 .chat-status{padding:8px 16px;font-size:13px}
 .chat-panel header,.chat-panel form,.chat-support,.chat-notice{flex-shrink:0}.chat-messages{min-height:0;flex:1 1 auto}
-@keyframes chat-greeting-in{from{opacity:0;transform:translateX(6px)}to{opacity:1;transform:translateX(0)}}
+@keyframes chat-greeting-in{from{transform:translateX(6px)}to{transform:translateX(0)}}
 @media(prefers-reduced-motion:reduce){.chat-greeting{animation:none}}
+.autopremium-chat{right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom))}
+@media(max-width:480px){.chat-checkout .chat-greeting{display:none}.chat-checkout .chat-toggle{width:52px;height:52px;min-height:52px}.chat-panel{max-height:calc(100dvh - 100px)}.chat-checkout .chat-panel{max-height:calc(100dvh - 86px)}}
 @media(max-width:480px){.autopremium-chat{right:16px;bottom:16px}.chat-messages{max-height:35dvh}}

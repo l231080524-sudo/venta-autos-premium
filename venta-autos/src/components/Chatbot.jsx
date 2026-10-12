@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, formatMoney } from '../api';
 import './Chatbot.css';
+import { useLocation } from 'react-router-dom';
+import { advisorURL } from '../support';
 
 // Destino fijo autorizado por el propietario; la IA no puede cambiarlo.
-const ADVISOR_URL = `https://wa.me/5215564028025?text=${encodeURIComponent('Hola, necesito ayuda de un asesor con AutoPremium CDMX.')}`;
 const HELP_TOPICS = [
   { label:'No puedo iniciar sesión', answer:'Comprueba tu correo y contraseña. Si la sesión venció, vuelve a iniciar sesión desde el icono de usuario. Si todavía no tienes cuenta, selecciona Registrarse. Si el problema continúa, contacta al asesor; no compartas tu contraseña.', advisor:false },
   { label:'Mi pago fue rechazado', answer:'Revisa el motivo que aparece en el pago y consulta con tu banco. Antes de intentar otra vez, revisa el estado de esa orden en el historial del Carrito. Un rechazo no confirma una compra. Si tienes dudas sobre un cargo, pide ayuda al asesor.', advisor:false },
@@ -24,10 +25,12 @@ function SupportIcon() {
   </svg>;
 }
 function AdvisorLink() {
-  return <a className="chat-advisor" href={ADVISOR_URL} target="_blank" rel="noopener noreferrer">Contactar asesor por WhatsApp</a>;
+  return <a className="chat-advisor" href={advisorURL} target="_blank" rel="noopener noreferrer">Contactar asesor por WhatsApp</a>;
 }
 
 export default function Chatbot() {
+  const location=useLocation();
+  const checkoutPage=location.pathname==='/carrito' || location.pathname.startsWith('/pago/');
   const [open,setOpen]=useState(false);
   const [messages,setMessages]=useState([]);
   const [input,setInput]=useState('');
@@ -68,7 +71,7 @@ export default function Chatbot() {
     } catch (err) { setError(err.name==='AbortError' ? 'La consulta tardó demasiado. Intenta más tarde o abre el catálogo.' : err.message); }
     finally {clearTimeout(timer); pending.current=false; setBusy(false);}
   }
-  return <aside className="autopremium-chat" aria-label="Asistente de AutoPremium">
+  return <aside className={`autopremium-chat${checkoutPage?' chat-checkout':''}`} aria-label="Asistente de AutoPremium">
     {open && <section className="chat-panel" aria-labelledby="chat-title" onKeyDown={e=>{if(e.key==='Escape') setOpen(false);}}>
       <header><h2 id="chat-title">Asistente AutoPremium</h2><button type="button" onClick={()=>setOpen(false)} aria-label="Cerrar chat">×</button></header>
       <p className="chat-notice">Asistente con IA. No compartas datos personales, tarjetas ni contraseñas. Tus preguntas se envían a Google Gemini.</p>
