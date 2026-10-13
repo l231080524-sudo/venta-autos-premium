@@ -30,6 +30,58 @@ async function audit(page) {
   expect(result.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => ({ target: n.target, summary: n.failureSummary })) }))).toEqual([]);
 }
 
+test('apartado de accesibilidad: opciones, imágenes y persistencia sin desbordamiento', async ({ page }) => {
+  await page.goto('/catalogo');
+  await expect(page.getByRole('article')).toHaveCount(4);
+  await page.getByRole('button', { name: 'Cuenta y preferencias', exact: true }).click();
+  await page.getByText('Accesibilidad', { exact: true }).click();
+  await page.getByLabel('Mostrar textos alternativos').check();
+  await expect(page.getByRole('region', { name: 'Textos alternativos de las imágenes' })).toContainText('AutoPremium Modelo 1, modelo 2026');
+  await page.getByLabel('Alto contraste', { exact: true }).check();
+  await page.getByLabel('Colores en escala de grises').check();
+  await page.getByLabel('Resaltar navegación por teclado').check();
+  await audit(page);
+  await page.getByLabel('Apariencia').selectOption('light');
+  await audit(page);
+  await page.getByLabel('Tamaño del texto').selectOption('200');
+  await page.setViewportSize({ width: 320, height: 800 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  expect(await page.locator('.profile-panel').evaluate(el => ({ width: el.clientWidth, overflow: el.scrollWidth, children: [...el.querySelectorAll('*')].filter(child => child.scrollWidth > child.clientWidth + 1).map(child => ({ tag: child.tagName, class: child.className, width: child.clientWidth, overflow: child.scrollWidth })) }))).toMatchObject({ children: [] });
+  await page.screenshot({ path: 'test-results/accesibilidad-movil-200.png' });
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-contrast', 'true');
+  await expect(page.locator('html')).toHaveAttribute('data-monochrome', 'true');
+  await expect(page.locator('html')).toHaveAttribute('data-keyboard', 'true');
+  await page.getByRole('button', { name: 'Cuenta y preferencias', exact: true }).click();
+  await page.getByText('Accesibilidad', { exact: true }).click();
+  await page.getByRole('button', { name: 'Restablecer accesibilidad' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-contrast', 'false');
+  await expect(page.locator('html')).toHaveCSS('font-size', '16px');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({ path: 'test-results/accesibilidad-panel.png' });
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Cuenta y preferencias', exact: true })).toBeFocused();
+});
+
+test('filtros: desplazan a las tarjetas después de actualizar la categoría', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/catalogo');
+  await expect(page.getByRole('article')).toHaveCount(4);
+  await page.getByRole('button', { name: 'Híbridos', exact: true }).click();
+  await expect(page.getByRole('article')).toHaveCount(1);
+  await expect(page.getByRole('article')).toContainText('Modelo 2');
+  await expect.poll(() => page.getByRole('article').evaluate(el => {
+    const headerBottom = document.querySelector('.site-header').getBoundingClientRect().bottom;
+    return el.getBoundingClientRect().top >= headerBottom && el.getBoundingClientRect().top < window.innerHeight;
+  })).toBe(true);
+  await page.getByRole('button', { name: 'Híbridos', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+  await page.getByRole('slider').focus();
+  await page.keyboard.press('Home');
+  await expect(page.getByRole('article')).toHaveCount(0);
+  await expect(page.getByRole('status')).toContainText('0 vehículos encontrados');
+});
+
 for (const theme of ['dark', 'light']) {
   test(`tarjetas compactas: alineación, ficha técnica y teclado en ${theme}`, async ({ page }) => {
     const inventory = cars.slice(0, 3).map((car, i) => ({ ...car, categoria: 'gasolina', modelo: ['M4', 'Vantage V8 Elegance', 'AMG G 63 Edición Especial de Colección'][i] }));
@@ -139,6 +191,7 @@ test('teclado: salto, enlaces, ventana de acceso y restauración del foco', asyn
 test('preferencias persistentes, filtros y stock', async ({ page }) => {
   await page.goto('/catalogo');
   await page.getByRole('button', { name: 'Cuenta y preferencias', exact: true }).click();
+  await page.getByText('Accesibilidad', { exact: true }).click();
   await page.getByLabel('Apariencia').selectOption('light');
   await page.getByLabel('Tamaño del texto').selectOption('200');
   await page.reload();
@@ -241,6 +294,7 @@ test('cuenta: acceso, nombre, preferencias y cierre de sesión', async ({ page }
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await account.click();
   await expect(page.locator('#panel-cuenta')).toContainText(user.nombre);
+  await page.getByText('Accesibilidad', { exact: true }).click();
   await expect(page.getByLabel('Apariencia')).toBeVisible();
   await expect(page.getByLabel('Tamaño del texto')).toBeVisible();
   await page.getByLabel('Apariencia').selectOption('light');
@@ -260,6 +314,7 @@ test('cuenta móvil al 200 %, sin desbordamiento y con preferencias alcanzables'
   await page.goto('/');
   await page.getByRole('button', { name: 'Cuenta y preferencias', exact: true }).click();
   expect(await page.locator('#panel-cuenta').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await page.getByText('Accesibilidad', { exact: true }).click();
   await page.getByLabel('Tamaño del texto').selectOption('150');
   await expect(page.locator('html')).toHaveCSS('font-size', '24px');
   await page.getByLabel('Apariencia').selectOption('light');

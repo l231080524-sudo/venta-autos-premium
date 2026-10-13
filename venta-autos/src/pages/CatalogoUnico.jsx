@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import CarCard from '../components/CarCard';
 
 export default function CatalogoUnico({ agregarAlCarrito }) {
@@ -13,6 +13,16 @@ export default function CatalogoUnico({ agregarAlCarrito }) {
 
   const [categoriaFiltro, setCategoriaFiltro] = useState('todos');
   const [precioElegido, setPrecioMaximo] = useState(null);
+  const results = useRef(null);
+  const [scrollRequest, setScrollRequest] = useState(0);
+  useEffect(() => {
+    if (!scrollRequest || loading || error) return;
+    const frame = requestAnimationFrame(() => {
+      const target = results.current?.querySelector('.catalog-results-grid') || results.current;
+      target?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [scrollRequest, loading, error]);
   const limitePrecio=Math.max(1,...vehiculos.map(car=>Number(car.precio)).filter(price=>Number.isFinite(price) && price>0));
   const precioMaximo=Math.min(precioElegido ?? limitePrecio,limitePrecio);
 
@@ -62,7 +72,7 @@ export default function CatalogoUnico({ agregarAlCarrito }) {
             {['todos', 'gasolina', 'hibrido', 'electrico', 'superdeportivo'].map((cat) => (
               <button
                 key={cat} aria-pressed={categoriaFiltro === cat}
-                onClick={() => setCategoriaFiltro(cat)}
+                onClick={() => { setCategoriaFiltro(cat); setScrollRequest(value => value + 1); }}
                 className={`px-4 py-3 md:py-2 text-sm uppercase tracking-normal font-bold rounded-lg text-center border ${
                   categoriaFiltro === cat
                     ? 'bg-panel text-content border-line '
@@ -85,16 +95,18 @@ export default function CatalogoUnico({ agregarAlCarrito }) {
               id="precio-maximo" aria-valuetext={`${precioMaximo.toLocaleString("es-MX")} pesos mexicanos`} type="range" min="0" max={limitePrecio} step="0.01" disabled={loading || !vehiculos.length}
               value={precioMaximo}
               onChange={(e) => setPrecioMaximo(Number(e.target.value))}
+              onPointerUp={() => setScrollRequest(value => value + 1)}
+              onKeyUp={event => { if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) setScrollRequest(value => value + 1); }}
               className="w-full accent-zinc-400 bg-panel rounded-lg h-8 cursor-pointer"
             />
-            <button type="button" onClick={()=>{setPrecioMaximo(null);setCategoriaFiltro('todos');}}>Restablecer filtros</button>
+            <button type="button" onClick={()=>{setPrecioMaximo(null);setCategoriaFiltro('todos');setScrollRequest(value => value + 1);}}>Restablecer filtros</button>
           </div>
         </div>
       </section>
 
       <p role="status" className="px-6 py-4">{!loading && !error ? `${vehiculos.filter(car => (categoriaFiltro === 'todos' || car.categoria === categoriaFiltro) && Number(car.precio) <= precioMaximo).length} vehículos encontrados` : ''}</p>
       {/* CONTENIDO PRINCIPAL: CATÁLOGO */}
-      <div className="flex-1">
+      <div ref={results} id="resultados-catalogo" className="flex-1">
         {loading ? (
           <div role="status" className="flex flex-col justify-center items-center py-32 space-y-4">
             <div className="w-12 h-12 border-4 border-line border-t-transparent rounded-full animate-spin"></div>
@@ -121,7 +133,7 @@ export default function CatalogoUnico({ agregarAlCarrito }) {
                   {getVehiculosDeCategoria('gasolina').length === 0 ? (
                     <p className="text-muted italic">No hay unidades bajo este rango.</p>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
+                    <div className="catalog-results-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
                       {getVehiculosDeCategoria('gasolina').map(car => (
                         <div key={car.id} className="relative group">
                           <CarCard car={car} agregarAlCarrito={car.stock > 0 ? agregarAlCarrito : undefined} theme="gasolina" />
@@ -145,7 +157,7 @@ export default function CatalogoUnico({ agregarAlCarrito }) {
                   {getVehiculosDeCategoria('hibrido').length === 0 ? (
                     <p className="text-muted italic">No hay unidades bajo este rango.</p>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
+                    <div className="catalog-results-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
                       {getVehiculosDeCategoria('hibrido').map(car => (
                         <div key={car.id} className="relative group">
                           <CarCard car={car} agregarAlCarrito={car.stock > 0 ? agregarAlCarrito : undefined} theme="hibrido" />
@@ -169,7 +181,7 @@ export default function CatalogoUnico({ agregarAlCarrito }) {
                   {getVehiculosDeCategoria('electrico').length === 0 ? (
                     <p className="text-muted italic">No hay unidades bajo este rango.</p>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
+                    <div className="catalog-results-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
                       {getVehiculosDeCategoria('electrico').map(car => (
                         <div key={car.id} className="relative group">
                           <CarCard car={car} agregarAlCarrito={car.stock > 0 ? agregarAlCarrito : undefined} theme="electrico" />
@@ -193,7 +205,7 @@ export default function CatalogoUnico({ agregarAlCarrito }) {
                   {getVehiculosDeCategoria('superdeportivo').length === 0 ? (
                     <p className="text-muted italic">No hay unidades bajo este rango.</p>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
+                    <div className="catalog-results-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10">
                       {getVehiculosDeCategoria('superdeportivo').map(car => (
                         <div key={car.id} className="relative group">
                           <CarCard car={car} agregarAlCarrito={car.stock > 0 ? agregarAlCarrito : undefined} theme="superdeportivo" />

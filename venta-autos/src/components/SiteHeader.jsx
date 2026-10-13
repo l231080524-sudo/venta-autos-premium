@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
+import AccessibilitySettings from './AccessibilitySettings';
 
 function readPreference(key, fallback) {
   try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
@@ -11,6 +12,9 @@ export default function SiteHeader({ usuario, carritoCount, logout, setModalAuth
   const [profileOpen, setProfileOpen] = useState(false);
   const [theme, setTheme] = useState(() => readPreference('ap-theme', 'dark'));
   const [scale, setScale] = useState(() => readPreference('ap-text-size', '100'));
+  const [contrast, setContrast] = useState(() => readPreference('ap-contrast', 'false') === 'true');
+  const [monochrome, setMonochrome] = useState(() => readPreference('ap-monochrome', 'false') === 'true');
+  const [keyboard, setKeyboard] = useState(() => readPreference('ap-keyboard', 'false') === 'true');
   const menuButton = useRef(null);
   const previousKey = useRef(key);
   const header = useRef(null);
@@ -21,6 +25,18 @@ export default function SiteHeader({ usuario, carritoCount, logout, setModalAuth
     document.documentElement.style.fontSize = `${['100', '125', '150', '175', '200'].includes(scale) ? scale : '100'}%`;
     try { localStorage.setItem('ap-theme', theme); localStorage.setItem('ap-text-size', scale); } catch { /* Preferences still work without storage. */ }
   }, [theme, scale]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.contrast = String(contrast);
+    root.dataset.monochrome = String(monochrome);
+    root.dataset.keyboard = String(keyboard);
+    try {
+      localStorage.setItem('ap-contrast', String(contrast));
+      localStorage.setItem('ap-monochrome', String(monochrome));
+      localStorage.setItem('ap-keyboard', String(keyboard));
+    } catch { /* Las opciones funcionan aunque el navegador bloquee el almacenamiento. */ }
+  }, [contrast, monochrome, keyboard]);
 
   useEffect(() => {
     const observer = new ResizeObserver(() => {
@@ -88,18 +104,7 @@ export default function SiteHeader({ usuario, carritoCount, logout, setModalAuth
                   profileButton.current?.focus(); setProfileOpen(false);
                   setModalAuth({ abierto: true, modoRegistro: false });
                 }}>Iniciar sesión</button>}
-              <div className="reading-controls">
-                <label htmlFor="theme-choice">Apariencia
-                  <select id="theme-choice" value={theme} onChange={(event) => setTheme(event.target.value)}>
-                    <option value="dark">Modo oscuro</option><option value="light">Modo claro</option>
-                  </select>
-                </label>
-                <label htmlFor="text-choice">Tamaño del texto
-                  <select id="text-choice" value={scale} onChange={(event) => setScale(event.target.value)}>
-                    {['100', '125', '150', '175', '200'].map(value => <option key={value} value={value}>{value} %</option>)}
-                  </select>
-                </label>
-              </div>
+              <AccessibilitySettings {...{ theme, setTheme, scale, setScale, contrast, setContrast, monochrome, setMonochrome, keyboard, setKeyboard }} />
               {usuario && <button className="logout-button" onClick={() => { profileButton.current?.focus(); logout(); }}>Cerrar sesión</button>}
             </section>}
           </div>
