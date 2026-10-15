@@ -37,11 +37,11 @@ export default function Chatbot() {
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const [enabled,setEnabled]=useState(null);
-  const pending=useRef(false), controller=useRef(null), field=useRef(null), end=useRef(null), log=useRef(null);
+  const pending=useRef(false), controller=useRef(null), field=useRef(null), end=useRef(null), log=useRef(null), launcher=useRef(null);
   useEffect(()=>{
     if (!open) return;
     const abort=new AbortController();
-    api('/api/chat/config',null,{signal:abort.signal}).then(data=>setEnabled(data.enabled)).catch(()=>{ if(!abort.signal.aborted) setEnabled(false); });
+    api('/api/chat/config',null,{signal:abort.signal}).then(data=>{ if(!abort.signal.aborted) setEnabled(data.enabled); }).catch(()=>{ if(!abort.signal.aborted) setEnabled(false); });
     field.current?.focus();
     return ()=>abort.abort();
   },[open]);
@@ -50,6 +50,13 @@ export default function Chatbot() {
     else if (log.current) log.current.scrollTop=0;
   },[messages,busy]);
   useEffect(()=>()=>controller.current?.abort(),[]);
+  function closeChat() {
+    controller.current?.abort();
+    controller.current=null;
+    pending.current=false;
+    setBusy(false);setMessages([]);setInput('');setError('');setEnabled(null);setOpen(false);
+    launcher.current?.focus();
+  }
   function chooseTopic(topic) {
     if (pending.current) return;
     setMessages(previous=>[...previous.slice(-18),{role:'user',text:topic.label},
@@ -66,14 +73,15 @@ export default function Chatbot() {
     try {
       const data=await api('/api/chat',null,{method:'POST',signal:abort.signal,
         body:JSON.stringify({mensaje:text,historial:messages.slice(-8).map(m=>({role:m.role,text:m.text}))})});
+      if (controller.current!==abort || abort.signal.aborted) return;
       setMessages(previous=>[...previous.slice(-18),{role:'user',text},{role:'model',text:data.respuesta,vehicles:data.vehiculos,advisor:data.asesor}]);
       setInput('');
-    } catch (err) { setError(err.name==='AbortError' ? 'La consulta tardó demasiado. Intenta más tarde o abre el catálogo.' : err.message); }
-    finally {clearTimeout(timer); pending.current=false; setBusy(false);}
+    } catch (err) { if (controller.current===abort) setError(err.name==='AbortError' ? 'La consulta tardó demasiado. Intenta más tarde o abre el catálogo.' : err.message); }
+    finally {clearTimeout(timer); if (controller.current===abort) { controller.current=null;pending.current=false;setBusy(false); }}
   }
   return <aside className={`autopremium-chat${checkoutPage?' chat-checkout':''}`} aria-label="Asistente de AutoPremium">
-    {open && <section className="chat-panel" aria-labelledby="chat-title" onKeyDown={e=>{if(e.key==='Escape') setOpen(false);}}>
-      <header><h2 id="chat-title">Asistente AutoPremium</h2><button type="button" onClick={()=>setOpen(false)} aria-label="Cerrar chat">×</button></header>
+    {open && <section className="chat-panel" aria-labelledby="chat-title" onKeyDown={e=>{if(e.key==='Escape') closeChat();}}>
+      <header><h2 id="chat-title">Asistente AutoPremium</h2><button type="button" onClick={closeChat} aria-label="Cerrar chat">×</button></header>
       <p className="chat-notice">Asistente con IA. No compartas datos personales, tarjetas ni contraseñas. Tus preguntas se envían a Google Gemini.</p>
       <div ref={log} className="chat-messages" role="log" aria-live="polite" aria-relevant="additions">
         <p className="chat-bubble">Hola, ¿en qué puedo ayudarte? Elige un problema frecuente o escribe tu pregunta. Esta demostración tiene cobros reales, sin entrega de vehículos.</p>
@@ -83,7 +91,7 @@ export default function Chatbot() {
         {messages.map((m,i)=><div key={i} className={`chat-bubble ${m.role==='user'?'chat-user':''}`}>
           <strong>{m.role==='user'?'Tú':'Asistente'}</strong><p>{m.text}</p>
           {m.advisor && <p>Un asesor puede ayudarte a revisar tu caso. Usa el botón de WhatsApp al final del chat.</p>}
-          {m.vehicles?.map(v=><div key={v.id} className="chat-vehicle"><strong>{v.nombre}</strong><p>{v.anio} · {formatMoney(v.precio)} MXN</p><Link to="/catalogo" onClick={()=>setOpen(false)}>Ver catálogo</Link></div>)}
+          {m.vehicles?.map(v=><div key={v.id} className="chat-vehicle"><strong>{v.nombre}</strong><p>{v.anio} · {formatMoney(v.precio)} MXN</p><Link to="/catalogo" onClick={closeChat}>Ver catálogo</Link></div>)}
         </div>)}
         {busy && <p role="status">Consultando…</p>}<span ref={end}/>
       </div>
@@ -96,7 +104,7 @@ export default function Chatbot() {
     </section>}
     <div className="chat-launcher">
       {!open && <span className="chat-greeting" aria-hidden="true">¿Necesitas ayuda?</span>}
-      <button className="chat-toggle" type="button" aria-label={open?'Cerrar asistente':'¿Necesitas ayuda?'} aria-expanded={open} onClick={()=>setOpen(!open)}><SupportIcon/></button>
+      <button ref={launcher} className="chat-toggle" type="button" aria-label={open?'Cerrar asistente':'¿Necesitas ayuda?'} aria-expanded={open} onClick={()=>{ if(open) closeChat();else setOpen(true); }}><SupportIcon/></button>
     </div>
   </aside>;
 }
