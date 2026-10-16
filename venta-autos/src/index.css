@@ -191,3 +191,16 @@ button[aria-pressed="true"] { outline: 2px solid var(--content); outline-offset:
 .keyboard-controls .keyboard-writing-note { font-size: .8rem; color: var(--muted); margin-bottom: 0; }
 .dialog-keyboard-help { display: none; padding: .75rem 1rem; font-size: .875rem; background: var(--panel); }
 :root[data-keyboard="true"] .dialog-keyboard-help { display: block; }
+.accessibility-widget { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 90; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.accessibility-launcher { display: grid; place-items: center; width: 64px; height: 64px; min-height: 64px; border: 2px solid #b5cee3; border-radius: 50%; padding: 0; background: #075caa; color: #fff; box-shadow: 0 4px 16px #0003; }
+.accessibility-back-top { width: 52px; height: 52px; border: 2px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--content); font-size: 24px; padding: 0; }
+.accessibility-panel-content { padding: 1rem; }
+dialog[aria-label="Accesibilidad"] .dialog-heading { position: sticky; top: 0; z-index: 1; background: var(--surface); }
+.voice-settings { display: grid; gap: .75rem; margin-top: 1rem; }
+.voice-settings h3 { font-size: 1.1rem; font-weight: 700; }
+.voice-settings ul { list-style: disc; padding-left: 1.25rem; }
+.voice-settings li { overflow-wrap: anywhere; margin-block: .3rem; }
+.voice-indicator { max-width: min(22rem, calc(100vw - 32px)); border: 2px solid var(--line); border-radius: .7rem; background: var(--surface); color: var(--content); padding: .7rem; font-size: .875rem; box-shadow: 0 4px 16px #0003; }
+.voice-indicator button { margin-top: .5rem; }
+:root[data-monochrome="true"] .accessibility-widget { filter: grayscale(1); }
+@media (max-width: 480px) { .chat-greeting { max-width: calc(100vw - 180px); font-size: 12px; } }

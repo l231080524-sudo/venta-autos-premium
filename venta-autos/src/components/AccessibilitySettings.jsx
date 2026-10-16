@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-export default function AccessibilitySettings({ theme, setTheme, scale, setScale, contrast, setContrast, monochrome, setMonochrome, keyboard, setKeyboard }) {
+export default function AccessibilitySettings({ theme, setTheme, scale, setScale, contrast, setContrast, monochrome, setMonochrome, keyboard, setKeyboard, onReset }) {
   const [descriptions, setDescriptions] = useState(false);
   const [images, setImages] = useState([]);
 
@@ -15,16 +15,7 @@ export default function AccessibilitySettings({ theme, setTheme, scale, setScale
     return () => { cancelAnimationFrame(frame); observer.disconnect(); };
   }, [descriptions]);
 
-  return <details className="accessibility-settings">
-    <summary className="accessibility-entry">
-      <span className="accessibility-icon" aria-hidden="true">
-        <svg viewBox="0 0 48 48" width="40" height="40" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <circle cx="24" cy="24" r="19" /><circle cx="24" cy="13" r="2" fill="currentColor" stroke="none" />
-          <path d="M13 20q11 4 22 0M24 19v10m0-1-6 12m6-12 6 12" strokeLinecap="round" />
-        </svg>
-      </span>
-      <span>Accesibilidad</span><span className="accessibility-chevron" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 5 7 7-7 7" /></svg></span>
-    </summary>
+  return <div className="accessibility-settings">
     <div className="reading-controls">
       <label htmlFor="theme-choice">Apariencia
         <select id="theme-choice" value={theme} onChange={event => setTheme(event.target.value)}>
@@ -44,7 +35,7 @@ export default function AccessibilitySettings({ theme, setTheme, scale, setScale
       <label className="accessibility-toggle"><input type="checkbox" checked={descriptions} onChange={event => setDescriptions(event.target.checked)} /> Mostrar textos alternativos</label>
       {descriptions && <section aria-label="Textos alternativos de las imágenes"><ul className="accessibility-image-list">{images.map(text => <li key={text}>{text}</li>)}</ul>{!images.length && <p>No hay imágenes informativas en esta vista.</p>}</section>}
       <div><h3>Subtítulos</h3><p className="accessibility-help">Esta página no contiene audio ni video que requiera subtítulos.</p></div>
-      <button type="button" onClick={() => { setTheme('dark'); setScale('100'); setContrast(false); setMonochrome(false); setKeyboard(false); setDescriptions(false); }}>Restablecer accesibilidad</button>
+      <button type="button" onClick={() => { setTheme('dark'); setScale('100'); setContrast(false); setMonochrome(false); setKeyboard(false); setDescriptions(false); onReset?.(); }}>Restablecer accesibilidad</button>
     </div>
-  </details>;
+  </div>;
 }

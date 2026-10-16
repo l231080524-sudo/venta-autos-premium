@@ -34,7 +34,7 @@ test('activar teclado muestra controles inmediatamente y se conserva al recargar
   await page.goto('/');
   await expect(page.getByRole('region', { name: 'Controles de navegación por teclado' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Cuenta y preferencias', exact: true }).click();
-  await page.getByText('Accesibilidad', { exact: true }).click();
+  await page.getByRole('button', { name: 'Accesibilidad', exact: true }).click();
   await page.getByLabel('Navegación por teclado', { exact: true }).focus();
   await page.keyboard.press('Space');
   const controls = page.getByRole('region', { name: 'Controles de navegación por teclado' });
@@ -148,7 +148,7 @@ test('atajos sencillos no interrumpen la escritura ni los selectores', async ({ 
   await expect(page).toHaveURL('http://127.0.0.1:4173/');
   await page.getByRole('button', { name: 'Cerrar chat', exact: true }).click();
   await page.getByRole('button', { name: 'Cuenta y preferencias', exact: true }).click();
-  await page.getByText('Accesibilidad', { exact: true }).click();
+  await page.getByRole('button', { name: 'Accesibilidad', exact: true }).click();
   await page.getByLabel('Tamaño del texto').focus();
   await page.keyboard.press('2');
   await expect(page).toHaveURL('http://127.0.0.1:4173/');
@@ -162,7 +162,7 @@ test('apartado de accesibilidad: opciones, imágenes y persistencia sin desborda
   await page.goto('/catalogo');
   await expect(page.getByRole('article')).toHaveCount(4);
   await page.getByRole('button', { name: 'Cuenta y preferencias', exact: true }).click();
-  await page.getByText('Accesibilidad', { exact: true }).click();
+  await page.getByRole('button', { name: 'Accesibilidad', exact: true }).click();
   await page.getByLabel('Mostrar textos alternativos').check();
   await expect(page.getByRole('region', { name: 'Textos alternativos de las imágenes' })).toContainText('AutoPremium Modelo 1, modelo 2026');
   await page.getByLabel('Alto contraste', { exact: true }).check();
@@ -174,21 +174,21 @@ test('apartado de accesibilidad: opciones, imágenes y persistencia sin desborda
   await page.getByLabel('Tamaño del texto').selectOption('200');
   await page.setViewportSize({ width: 320, height: 800 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  expect(await page.locator('.profile-panel').evaluate(el => ({ width: el.clientWidth, overflow: el.scrollWidth, children: [...el.querySelectorAll('*')].filter(child => child.scrollWidth > child.clientWidth + 1).map(child => ({ tag: child.tagName, class: child.className, width: child.clientWidth, overflow: child.scrollWidth })) }))).toMatchObject({ children: [] });
+  expect(await page.getByRole('dialog', { name: 'Accesibilidad', exact: true }).evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/accesibilidad-movil-200.png' });
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-contrast', 'true');
   await expect(page.locator('html')).toHaveAttribute('data-monochrome', 'true');
   await expect(page.locator('html')).toHaveAttribute('data-keyboard', 'true');
   await page.getByRole('button', { name: 'Cuenta y preferencias', exact: true }).click();
-  await page.getByText('Accesibilidad', { exact: true }).click();
+  await page.getByRole('button', { name: 'Accesibilidad', exact: true }).click();
   await page.getByRole('button', { name: 'Restablecer accesibilidad' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-contrast', 'false');
   await expect(page.locator('html')).toHaveCSS('font-size', '16px');
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'test-results/accesibilidad-panel.png' });
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('button', { name: 'Cuenta y preferencias', exact: true })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Accesibilidad', exact: true })).toBeFocused();
 });
 
 test('filtros: desplazan a las tarjetas después de actualizar la categoría', async ({ page }) => {
@@ -319,7 +319,7 @@ test('teclado: salto, enlaces, ventana de acceso y restauración del foco', asyn
 test('preferencias persistentes, filtros y stock', async ({ page }) => {
   await page.goto('/catalogo');
   await page.getByRole('button', { name: 'Cuenta y preferencias', exact: true }).click();
-  await page.getByText('Accesibilidad', { exact: true }).click();
+  await page.getByRole('button', { name: 'Accesibilidad', exact: true }).click();
   await page.getByLabel('Apariencia').selectOption('light');
   await page.getByLabel('Tamaño del texto').selectOption('200');
   await page.reload();
@@ -422,15 +422,17 @@ test('cuenta: acceso, nombre, preferencias y cierre de sesión', async ({ page }
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await account.click();
   await expect(page.locator('#panel-cuenta')).toContainText(user.nombre);
-  await page.getByText('Accesibilidad', { exact: true }).click();
+  await page.getByRole('button', { name: 'Accesibilidad', exact: true }).click();
   await expect(page.getByLabel('Apariencia')).toBeVisible();
   await expect(page.getByLabel('Tamaño del texto')).toBeVisible();
   await page.getByLabel('Apariencia').selectOption('light');
   await audit(page);
+  await page.keyboard.press('Escape');
+  await account.click();
   await page.getByRole('button', { name: 'Cerrar sesión', exact: true }).click();
   await expect(page.locator('#panel-cuenta')).not.toContainText(user.nombre);
   await expect(page.locator('#panel-cuenta').getByRole('button', { name: 'Iniciar sesión' })).toBeVisible();
-  await expect(page.getByLabel('Apariencia')).toHaveValue('light');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await page.keyboard.press('Escape');
   await expect(account).toBeFocused();
   await expect(page.locator('#panel-cuenta')).toHaveCount(0);
@@ -442,7 +444,7 @@ test('cuenta móvil al 200 %, sin desbordamiento y con preferencias alcanzables'
   await page.goto('/');
   await page.getByRole('button', { name: 'Cuenta y preferencias', exact: true }).click();
   expect(await page.locator('#panel-cuenta').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
-  await page.getByText('Accesibilidad', { exact: true }).click();
+  await page.getByRole('button', { name: 'Accesibilidad', exact: true }).click();
   await page.getByLabel('Tamaño del texto').selectOption('150');
   await expect(page.locator('html')).toHaveCSS('font-size', '24px');
   await page.getByLabel('Apariencia').selectOption('light');

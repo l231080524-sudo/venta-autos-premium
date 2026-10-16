@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import AccessibilitySettings from './AccessibilitySettings';
+import AccessibilityWidget from './AccessibilityWidget';
 import KeyboardNavigation from './KeyboardNavigation';
 
 function readPreference(key, fallback) {
@@ -110,7 +110,6 @@ export default function SiteHeader({ usuario, carritoCount, logout, setModalAuth
                   profileButton.current?.focus(); setProfileOpen(false);
                   setModalAuth({ abierto: true, modoRegistro: false });
                 }}>Iniciar sesión</button>}
-              <AccessibilitySettings {...{ theme, setTheme, scale, setScale, contrast, setContrast, monochrome, setMonochrome, keyboard, setKeyboard }} />
               {usuario && <button className="logout-button" onClick={() => { profileButton.current?.focus(); logout(); }}>Cerrar sesión</button>}
             </section>}
           </div>
@@ -118,6 +117,7 @@ export default function SiteHeader({ usuario, carritoCount, logout, setModalAuth
 
       </div>
       {keyboard && <KeyboardNavigation onAccount={keyboardAccount} signedIn={Boolean(usuario)} onNavigate={closePanels} onDisable={() => { setKeyboard(false); profileButton.current?.focus(); }} />}
+      <AccessibilityWidget onAccount={keyboardAccount} {...{ theme, setTheme, scale, setScale, contrast, setContrast, monochrome, setMonochrome, keyboard, setKeyboard }} />
     </header>
   );
 }
