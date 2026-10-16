@@ -38,7 +38,8 @@ export default function AccessibilitySettings({ theme, setTheme, scale, setScale
       </label>
       <label className="accessibility-toggle"><input type="checkbox" checked={contrast} onChange={event => setContrast(event.target.checked)} /> Alto contraste</label>
       <label className="accessibility-toggle"><input type="checkbox" checked={monochrome} onChange={event => setMonochrome(event.target.checked)} /> Colores en escala de grises</label>
-      <label className="accessibility-toggle"><input type="checkbox" checked={keyboard} onChange={event => setKeyboard(event.target.checked)} /> Resaltar navegación por teclado</label>
+      <label className="accessibility-toggle"><input type="checkbox" checked={keyboard} onChange={event => setKeyboard(event.target.checked)} /> Navegación por teclado</label>
+      {keyboard && <p className="accessibility-help" role="status">Controles activados en el encabezado. Pulsa F6 para acceder a ellos.</p>}
       <p className="accessibility-help">Usa Tab y Mayús + Tab para moverte, Enter para seleccionar y Escape para cerrar ventanas. Las opciones y estados también se indican con texto.</p>
       <label className="accessibility-toggle"><input type="checkbox" checked={descriptions} onChange={event => setDescriptions(event.target.checked)} /> Mostrar textos alternativos</label>
       {descriptions && <section aria-label="Textos alternativos de las imágenes"><ul className="accessibility-image-list">{images.map(text => <li key={text}>{text}</li>)}</ul>{!images.length && <p>No hay imágenes informativas en esta vista.</p>}</section>}

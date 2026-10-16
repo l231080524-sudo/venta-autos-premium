@@ -35,6 +35,7 @@ export default function AccessibleDialog({ title, onClose, children }) {
         <h2>{title}</h2>
         <button type="button" onClick={onClose} aria-label={`Cerrar ${title}`}>Cerrar ×</button>
       </div>
+      <p className="dialog-keyboard-help">Tab y Mayús + Tab: recorrer controles · Enter o Espacio: activar botones · Flechas y Av Pág / Re Pág: desplazar contenido · Escape: cerrar.</p>
       {children}
     </dialog>, document.body,
   );

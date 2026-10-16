@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import AccessibilitySettings from './AccessibilitySettings';
+import KeyboardNavigation from './KeyboardNavigation';
 
 function readPreference(key, fallback) {
   try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
@@ -70,6 +71,11 @@ export default function SiteHeader({ usuario, carritoCount, logout, setModalAuth
   }, []);
 
   const closePanels = () => { setMenuOpen(false); setProfileOpen(false); };
+  const keyboardAccount = useCallback(() => {
+    setMenuOpen(false);
+    if (usuario) { setProfileOpen(true); requestAnimationFrame(() => profileButton.current?.focus()); }
+    else { setProfileOpen(false); setModalAuth({ abierto: true, modoRegistro: false }); }
+  }, [usuario, setModalAuth]);
 
   return (
     <header ref={header} className="site-header print:hidden" onKeyDown={(event) => {
@@ -111,6 +117,7 @@ export default function SiteHeader({ usuario, carritoCount, logout, setModalAuth
         </div>
 
       </div>
+      {keyboard && <KeyboardNavigation onAccount={keyboardAccount} signedIn={Boolean(usuario)} onNavigate={closePanels} onDisable={() => { setKeyboard(false); profileButton.current?.focus(); }} />}
     </header>
   );
 }

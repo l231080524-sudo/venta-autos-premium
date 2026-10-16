@@ -96,7 +96,7 @@ export default function CatalogoUnico({ agregarAlCarrito }) {
               value={precioMaximo}
               onChange={(e) => setPrecioMaximo(Number(e.target.value))}
               onPointerUp={() => setScrollRequest(value => value + 1)}
-              onKeyUp={event => { if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) setScrollRequest(value => value + 1); }}
+              onKeyUp={event => { if (!event.altKey && !event.ctrlKey && !event.metaKey && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) setScrollRequest(value => value + 1); }}
               className="w-full accent-zinc-400 bg-panel rounded-lg h-8 cursor-pointer"
             />
             <button type="button" onClick={()=>{setPrecioMaximo(null);setCategoriaFiltro('todos');setScrollRequest(value => value + 1);}}>Restablecer filtros</button>

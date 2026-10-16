@@ -30,6 +30,115 @@ async function audit(page) {
   expect(result.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => ({ target: n.target, summary: n.failureSummary })) }))).toEqual([]);
 }
 
+test('activar teclado muestra controles inmediatamente y se conserva al recargar', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('region', { name: 'Controles de navegación por teclado' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Cuenta y preferencias', exact: true }).click();
+  await page.getByText('Accesibilidad', { exact: true }).click();
+  await page.getByLabel('Navegación por teclado', { exact: true }).focus();
+  await page.keyboard.press('Space');
+  const controls = page.getByRole('region', { name: 'Controles de navegación por teclado' });
+  await expect(controls).toBeVisible();
+  await expect(controls).toContainText('Alt + Mayús + 2');
+  await page.keyboard.press('F6');
+  await expect(controls.getByRole('link', { name: /^Inicio/ })).toBeFocused();
+  await page.reload();
+  await expect(controls).toBeVisible();
+  await controls.getByRole('button', { name: 'Desactivar', exact: true }).click();
+  await expect(controls).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Cuenta y preferencias', exact: true })).toBeFocused();
+  await page.reload();
+  await expect(controls).toHaveCount(0);
+});
+
+for (const theme of ['dark', 'light']) {
+  test(`teclado completo en ${theme}: apartados, desplazamiento, fichas e inicio de sesión`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript(theme => { localStorage.setItem('ap-keyboard', 'true'); localStorage.setItem('ap-theme', theme); }, theme);
+    await page.goto('/');
+    const controls = page.getByRole('region', { name: 'Controles de navegación por teclado' });
+    await page.keyboard.press('F6');
+    await expect(controls.getByRole('link', { name: /^Inicio/ })).toBeFocused();
+    if (theme === 'dark') await page.screenshot({ path: 'test-results/controles-teclado.png' });
+    await audit(page);
+    await page.keyboard.press('Alt+Shift+ArrowDown');
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+    await page.keyboard.press('Alt+Shift+ArrowUp');
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    await page.keyboard.press('Alt+Shift+Digit2');
+    await expect(page).toHaveURL(/\/catalogo$/);
+    await expect(page.getByRole('article')).toHaveCount(4);
+    await page.getByRole('slider').focus();
+    const beforeScroll = await page.evaluate(() => ({ y: scrollY, distance: Math.max(100, (innerHeight - document.querySelector('.site-header').getBoundingClientRect().height) * .75) }));
+    await page.keyboard.press('Alt+Shift+ArrowDown');
+    await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(beforeScroll.y + beforeScroll.distance, 0);
+    await expect(page.getByRole('slider')).toHaveValue('2500000');
+    await page.keyboard.press('F6');
+    await page.keyboard.press('Alt+Shift+KeyN');
+    await expect(page.getByRole('button', { name: 'Todos', exact: true })).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: 'Gasolina', exact: true })).toBeFocused();
+    await page.keyboard.press('Alt+Shift+KeyP');
+    await expect(page.getByRole('button', { name: 'Todos', exact: true })).toBeFocused();
+    await page.keyboard.press('Alt+Shift+KeyF');
+    const details = page.getByRole('dialog', { name: 'AutoPremium Modelo 1', exact: true });
+    await expect(details).toBeVisible();
+    await expect(details).toContainText('470 HP');
+    await expect(details.locator('.dialog-keyboard-help')).toBeVisible();
+    await page.keyboard.press('Alt+Shift+Digit3');
+    await expect(page).toHaveURL(/\/catalogo$/);
+    await page.keyboard.press('Tab');
+    expect(await details.evaluate(el => el.contains(document.activeElement))).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(details).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Más información sobre AutoPremium Modelo 1', exact: true })).toBeFocused();
+    await page.keyboard.press('Alt+Shift+KeyL');
+    await expect(page.getByRole('dialog', { name: 'Iniciar sesión', exact: true })).toBeVisible();
+    await page.keyboard.press('Tab');
+    await expect(page.getByLabel('Correo Electrónico')).toBeFocused();
+    await page.keyboard.type(user.email);
+    await page.keyboard.press('Tab');
+    await expect(page.getByLabel('Contraseña de Seguridad')).toBeFocused();
+    await page.keyboard.type('dato-de-prueba');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(controls.getByRole('button', { name: /^Mi cuenta/ })).toBeFocused();
+    await page.keyboard.press('Alt+Shift+KeyL');
+    await expect(page.locator('#panel-cuenta')).toContainText(user.nombre);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Alt+Shift+Digit3');
+    await expect(page).toHaveURL(/\/carrito$/);
+    await page.keyboard.press('Alt+Shift+Digit1');
+    await expect(page).toHaveURL('http://127.0.0.1:4173/');
+  });
+}
+
+test('controles de teclado en móvil al 200 % son alcanzables y no desbordan', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.addInitScript(() => { localStorage.setItem('ap-keyboard', 'true'); localStorage.setItem('ap-text-size', '200'); });
+  await page.goto('/');
+  const controls = page.getByRole('region', { name: 'Controles de navegación por teclado' });
+  await expect(controls).toBeVisible();
+  await page.keyboard.press('F6');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  expect(await controls.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await page.keyboard.press('Tab');
+  await expect(controls.getByRole('link', { name: /^Catálogo/ })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('article')).toHaveCount(4);
+  await page.keyboard.press('Alt+Shift+KeyF');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  expect(await page.getByRole('dialog').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('F6');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/carrito$/);
+  await page.screenshot({ path: 'test-results/teclado-movil-200.png' });
+});
+
 test('apartado de accesibilidad: opciones, imágenes y persistencia sin desbordamiento', async ({ page }) => {
   await page.goto('/catalogo');
   await expect(page.getByRole('article')).toHaveCount(4);
@@ -39,7 +148,7 @@ test('apartado de accesibilidad: opciones, imágenes y persistencia sin desborda
   await expect(page.getByRole('region', { name: 'Textos alternativos de las imágenes' })).toContainText('AutoPremium Modelo 1, modelo 2026');
   await page.getByLabel('Alto contraste', { exact: true }).check();
   await page.getByLabel('Colores en escala de grises').check();
-  await page.getByLabel('Resaltar navegación por teclado').check();
+  await page.getByLabel('Navegación por teclado', { exact: true }).check();
   await audit(page);
   await page.getByLabel('Apariencia').selectOption('light');
   await audit(page);

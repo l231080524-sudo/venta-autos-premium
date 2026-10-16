@@ -179,3 +179,13 @@ button[aria-pressed="true"] { outline: 2px solid var(--content); outline-offset:
 :root[data-theme="light"][data-contrast="true"] { --surface: #fff; --panel: #fff; --content: #000; --muted: #000; --line: #000; --action: #000; --action-text: #fff; --focus: #000; }
 :root[data-contrast="true"] .site-header, :root[data-monochrome="true"] .site-header { background: var(--surface); border-color: var(--line); }
 :root[data-contrast="true"] a { text-decoration: underline; }
+.keyboard-controls { margin-top: .75rem; padding: .8rem; background: var(--panel); border: 2px solid var(--line); border-radius: .7rem; max-height: min(19rem, 35dvh); overflow: auto; scrollbar-gutter: stable; }
+.keyboard-controls-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
+.keyboard-controls h2 { font-size: 1rem; font-weight: 700; }
+.keyboard-controls p { font-size: .875rem; margin-block: .5rem; max-width: none; }
+.keyboard-controls-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: .5rem; }
+.keyboard-controls-actions a, .keyboard-controls-actions button { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .25rem; padding: .5rem; border: 1px solid var(--line); border-radius: .4rem; background: var(--surface); color: var(--content); text-align: left; font-size: .875rem; text-decoration: underline; }
+.keyboard-controls-actions [aria-current="page"] { border-width: 3px; font-weight: 700; }
+.keyboard-controls kbd { font: inherit; font-size: .8em; color: var(--muted); }
+.dialog-keyboard-help { display: none; padding: .75rem 1rem; font-size: .875rem; background: var(--panel); }
+:root[data-keyboard="true"] .dialog-keyboard-help { display: block; }
