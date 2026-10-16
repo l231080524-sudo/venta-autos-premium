@@ -183,9 +183,11 @@ button[aria-pressed="true"] { outline: 2px solid var(--content); outline-offset:
 .keyboard-controls-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
 .keyboard-controls h2 { font-size: 1rem; font-weight: 700; }
 .keyboard-controls p { font-size: .875rem; margin-block: .5rem; max-width: none; }
-.keyboard-controls-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: .5rem; }
-.keyboard-controls-actions a, .keyboard-controls-actions button { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .25rem; padding: .5rem; border: 1px solid var(--line); border-radius: .4rem; background: var(--surface); color: var(--content); text-align: left; font-size: .875rem; text-decoration: underline; }
+.keyboard-controls-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: .6rem; }
+.keyboard-controls-actions a, .keyboard-controls-actions button { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .65rem .8rem; border: 1px solid var(--line); border-radius: .6rem; background: var(--surface); color: var(--content); text-align: left; font-size: 1rem; text-decoration: none; }
 .keyboard-controls-actions [aria-current="page"] { border-width: 3px; font-weight: 700; }
 .keyboard-controls kbd { font: inherit; font-size: .8em; color: var(--muted); }
+.keyboard-controls-actions kbd { display: grid; place-items: center; flex-shrink: 0; min-width: 1.8rem; min-height: 1.8rem; padding: .15rem; border: 1px solid var(--line); border-radius: .3rem; background: var(--panel); color: var(--content); font-size: 1rem; font-weight: 700; }
+.keyboard-controls .keyboard-writing-note { font-size: .8rem; color: var(--muted); margin-bottom: 0; }
 .dialog-keyboard-help { display: none; padding: .75rem 1rem; font-size: .875rem; background: var(--panel); }
 :root[data-keyboard="true"] .dialog-keyboard-help { display: block; }
