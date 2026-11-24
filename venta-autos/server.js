@@ -3,15 +3,53 @@ import pg from 'pg';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { pathToFileURL } from 'node:url';
+import { randomUUID } from 'node:crypto';
 import { readConfig, createMercadoPago } from './backend/config.js';
 import { createCheckout } from './backend/checkout.js';
 import { createChat } from './backend/chat.js';
-import { cents, requireValue, transaction, hashPassword, verifyPassword, sessionToken, sessionUser } from './backend/core.js';
+import { cents, requireValue, transaction, hashPassword, verifyPassword, sessionToken, sessionClaims } from './backend/core.js';
+import { AUTH_OTP_MAX_ATTEMPTS, AUTH_SESSION_IDLE_MS, AUTH_SESSION_MAX_MS, createAuthDelivery, createOtpChallenge, normalizePhone, otpMatches } from './backend/auth.js';
+
+const AUTH_FAILURE_LIMIT = 5;
+const AUTH_FAILURE_WINDOW_MS = 15 * 60 * 1000;
+const AUTH_LOCK_MS = 15 * 60 * 1000;
+
+function locked(user, now = Date.now()) {
+  return Boolean(user?.auth_bloqueado_hasta && new Date(user.auth_bloqueado_hasta).getTime() > now);
+}
+
+async function recordAuthFailure(db, user, now = Date.now()) {
+  if (locked(user, now)) return true;
+  const started = user.auth_ventana ? new Date(user.auth_ventana).getTime() : 0;
+  const inWindow = started > now - AUTH_FAILURE_WINDOW_MS;
+  const failures = inWindow ? Number(user.auth_fallos || 0) + 1 : 1;
+  const windowStart = inWindow ? new Date(user.auth_ventana) : new Date(now);
+  const blockedUntil = failures >= AUTH_FAILURE_LIMIT ? new Date(now + AUTH_LOCK_MS) : null;
+  await db.query('UPDATE usuarios SET auth_fallos=$2,auth_ventana=$3,auth_bloqueado_hasta=$4 WHERE id=$1',
+    [user.id, failures, windowStart, blockedUntil]);
+  if (blockedUntil) await db.query('UPDATE auth_challenges SET consumed_at=NOW() WHERE user_id=$1 AND consumed_at IS NULL', [user.id]);
+  return Boolean(blockedUntil);
+}
+
+async function makeSession(pool, user, secret, now = Date.now()) {
+  const sessionId = randomUUID();
+  const expiresAt = new Date(now + AUTH_SESSION_MAX_MS);
+  await pool.query('INSERT INTO auth_sessions(id,user_id,expires_at) VALUES($1,$2,$3)', [sessionId, user.id, expiresAt]);
+  return {
+    id: user.id,
+    nombre: user.nombre,
+    email: user.email,
+    rol: user.rol,
+    token: sessionToken(user.id, secret, now, sessionId, AUTH_SESSION_MAX_MS),
+    expiresAt: expiresAt.toISOString(),
+    idleTimeoutSeconds: AUTH_SESSION_IDLE_MS / 1000,
+  };
+}
 
 // Copia las variables de .env.example a tu .env privado; en Render usa Environment.
 // Nunca pegues claves en este archivo. Las migraciones SQL se ejecutan por separado.
 dotenv.config();
-export function createApp({ pool, config = readConfig(), mp = createMercadoPago(config) }) {
+export function createApp({ pool, config = readConfig(), mp = createMercadoPago(config), authDelivery = createAuthDelivery() }) {
   const app = express();
   app.disable('x-powered-by');
   app.use(cors({ origin: config.origins, methods: ['GET','POST','PUT','DELETE'], allowedHeaders: ['Content-Type','Authorization'], exposedHeaders: ['Content-Disposition'] }));
@@ -20,9 +58,16 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
   app.use('/api/chat', createChat({ pool }));
   const authenticate = async (req,res,next) => {
     requireValue(config.authSecret.length >= 32, 503, 'Falta configurar AUTH_SECRET en el servidor.');
-    const id = sessionUser(req.get('Authorization')?.replace(/^Bearer /,'') || '', config.authSecret);
-    requireValue(id, 401, 'Tu sesión venció. Vuelve a iniciar sesión.');
-    const user = (await pool.query('SELECT id,nombre,email,rol,telefono FROM usuarios WHERE id=$1',[id])).rows[0];
+    const claims = sessionClaims(req.get('Authorization')?.replace(/^Bearer /,'') || '', config.authSecret);
+    requireValue(claims, 401, 'Tu sesión venció. Vuelve a iniciar sesión.');
+    if (claims.sessionId) {
+      const active = (await pool.query(`UPDATE auth_sessions SET last_seen_at=NOW()
+        WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL AND expires_at>NOW()
+          AND last_seen_at>NOW()-INTERVAL '30 minutes' RETURNING id`, [claims.sessionId, claims.userId])).rows[0];
+      requireValue(active, 401, 'Tu sesión venció por inactividad. Vuelve a iniciar sesión.');
+      req.authSession = active;
+    }
+    const user = (await pool.query('SELECT id,nombre,email,rol,telefono FROM usuarios WHERE id=$1',[claims.userId])).rows[0];
     requireValue(user, 401, 'La cuenta ya no está disponible.');
     req.user = user; next();
   };
@@ -32,7 +77,9 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
   const userAdmin = [authenticate, (req,res,next) => {
     requireValue(['admin','superadmin','admin_restringido'].includes(req.user.rol),403,'Se requiere una cuenta administradora.'); next();
   }];
-  const publicUser = user => ({ id:user.id,nombre:user.nombre,email:user.email,rol:user.rol,token:sessionToken(user.id,config.authSecret) });
+  const startChallenge = async (user, purpose, channel) => createOtpChallenge({
+    pool, delivery:authDelivery, user, purpose, channel, secret:config.authSecret,
+  });
   const attempts = new Map();
   const limitLogin = (req,res,next) => {
     const now=Date.now();
@@ -42,14 +89,34 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
     requireValue(entry.count<=30,429,'Demasiados intentos. Espera un minuto.'); next();
   };
   app.get('/api/health',async (_req,res) => { await pool.query('SELECT 1'); res.json({ok:true}); });
+  app.post('/api/auth/heartbeat',authenticate,(_req,res) => res.json({ ok:true }));
+  app.post('/api/auth/logout',authenticate,async (req,res) => {
+    if (req.authSession) await pool.query('UPDATE auth_sessions SET revoked_at=NOW() WHERE id=$1', [req.authSession.id]);
+    res.json({ ok:true });
+  });
   app.post('/api/auth/login',limitLogin,async (req,res) => {
     requireValue(config.authSecret.length>=32,503,'Falta configurar AUTH_SECRET en el servidor.');
-    const {email,password}=req.body;
+    const {email,password,method='email'}=req.body;
     requireValue(typeof email==='string' && typeof password==='string' && password.length<=256,400,'Datos de acceso inválidos.');
+    requireValue(['email','sms'].includes(method),400,'Selecciona un método de verificación válido.');
     const user=(await pool.query('SELECT * FROM usuarios WHERE lower(email)=lower($1)',[email.trim()])).rows[0];
-    requireValue(user && await verifyPassword(password,user.password_hash),401,'Correo o contraseña incorrectos.');
+    if (user && locked(user)) requireValue(false,423,'La cuenta está bloqueada temporalmente. Espera 15 minutos antes de intentarlo de nuevo.');
+    const passwordValid = user && await verifyPassword(password,user.password_hash);
+    if (!passwordValid) {
+      if (user) {
+        const result = await transaction(pool, async db => {
+          const current=(await db.query('SELECT id,auth_fallos,auth_ventana,auth_bloqueado_hasta FROM usuarios WHERE id=$1 FOR UPDATE',[user.id])).rows[0];
+          return recordAuthFailure(db,current);
+        });
+        if (result) requireValue(false,423,'La cuenta se bloqueó por demasiados intentos. Espera 15 minutos.');
+      }
+      requireValue(false,401,'Correo o contraseña incorrectos.');
+    }
     if (!user.password_hash.startsWith('scrypt:')) await pool.query('UPDATE usuarios SET password_hash=$2 WHERE id=$1',[user.id,await hashPassword(password)]);
-    res.json(publicUser(user));
+    const purpose = user.correo_verificado ? 'login' : 'verify_email';
+    const channel = purpose === 'verify_email' ? 'email' : method;
+    const challenge = await startChallenge(user,purpose,channel);
+    res.json({ requiereCodigo:true, requiereVerificacion:purpose==='verify_email', ...challenge });
   });
   app.post('/api/auth/registro',limitLogin,async (req,res) => {
     requireValue(config.authSecret.length>=32,503,'Falta configurar AUTH_SECRET en el servidor.');
@@ -57,11 +124,64 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
     requireValue(typeof nombre==='string' && nombre.trim().length>0 && nombre.length<=100
       && typeof email==='string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length<=150
       && typeof password==='string' && password.length>=8 && password.length<=256
-      && typeof telefono==='string' && telefono.length<=20,400,'Revisa tus datos. La contraseña debe tener al menos 8 caracteres.');
-    // El correo nunca concede privilegios: el rol se obtiene de PostgreSQL.
-    const user=(await pool.query(`INSERT INTO usuarios(nombre,email,password_hash,rol,telefono)
-      VALUES($1,$2,$3,'cliente',$4) RETURNING id,nombre,email,rol`,[nombre.trim(),email.trim().toLowerCase(),await hashPassword(password),telefono])).rows[0];
-    res.status(201).json(publicUser(user));
+      && typeof telefono==='string' && telefono.length<=30,400,'Revisa tus datos. La contraseña debe tener al menos 8 caracteres.');
+    const telefonoNormalizado=normalizePhone(telefono);
+    let user;
+    try {
+      user=(await pool.query(`INSERT INTO usuarios(nombre,email,password_hash,rol,telefono,correo_verificado)
+        VALUES($1,$2,$3,'cliente',$4,FALSE) RETURNING id,nombre,email,rol,telefono,correo_verificado`,
+      [nombre.trim(),email.trim().toLowerCase(),await hashPassword(password),telefonoNormalizado])).rows[0];
+    } catch (error) {
+      if (error.code!=='23505') throw error;
+      user=(await pool.query('SELECT * FROM usuarios WHERE lower(email)=lower($1)',[email.trim()])).rows[0];
+      requireValue(user && !user.correo_verificado && await verifyPassword(password,user.password_hash),409,'Ese correo ya tiene una cuenta. Inicia sesión o recupera el acceso.');
+    }
+    const challenge=await startChallenge(user,'verify_email','email');
+    res.status(201).json({ requiereCodigo:true, requiereVerificacion:true, ...challenge });
+  });
+  app.post('/api/auth/verificar',limitLogin,async (req,res) => {
+    requireValue(config.authSecret.length>=32,503,'Falta configurar AUTH_SECRET en el servidor.');
+    const {challengeId,code}=req.body;
+    requireValue(typeof challengeId==='string' && /^[0-9a-f-]{36}$/i.test(challengeId)
+      && typeof code==='string' && /^\d{6}$/.test(code),400,'Escribe el código de seis dígitos.');
+    const result=await transaction(pool,async db => {
+      const row=(await db.query(`SELECT c.*,u.id AS account_id,u.nombre,u.email,u.rol,u.telefono,u.correo_verificado,
+        u.auth_fallos,u.auth_ventana,u.auth_bloqueado_hasta
+        FROM auth_challenges c JOIN usuarios u ON u.id=c.user_id
+        WHERE c.id=$1 FOR UPDATE OF c,u`,[challengeId])).rows[0];
+      if (!row || row.consumed_at || new Date(row.expires_at).getTime()<=Date.now() || Number(row.attempts)>=AUTH_OTP_MAX_ATTEMPTS)
+        return { ok:false };
+      if (!otpMatches(challengeId,code,row.code_hash,config.authSecret)) {
+        const attempts=Number(row.attempts)+1;
+        await db.query('UPDATE auth_challenges SET attempts=$2,consumed_at=CASE WHEN $2 >= $3 THEN NOW() ELSE consumed_at END WHERE id=$1',
+          [challengeId,attempts,AUTH_OTP_MAX_ATTEMPTS]);
+        const account={id:row.account_id,auth_fallos:row.auth_fallos,auth_ventana:row.auth_ventana,auth_bloqueado_hasta:row.auth_bloqueado_hasta};
+        const isLocked=row.purpose==='login' && await recordAuthFailure(db,account);
+        return { ok:false, locked:isLocked };
+      }
+      if (row.purpose==='login' && locked(row)) return { ok:false, locked:true };
+      await db.query('UPDATE auth_challenges SET consumed_at=NOW() WHERE id=$1',[challengeId]);
+      if (row.purpose==='verify_email') await db.query('UPDATE usuarios SET correo_verificado=TRUE WHERE id=$1',[row.account_id]);
+      if (row.purpose==='login') {
+        if (row.channel==='sms') await db.query('UPDATE usuarios SET telefono_verificado=TRUE WHERE id=$1',[row.account_id]);
+        await db.query('UPDATE usuarios SET auth_fallos=0,auth_ventana=NULL,auth_bloqueado_hasta=NULL WHERE id=$1',[row.account_id]);
+      }
+      const user=(await db.query('SELECT id,nombre,email,rol FROM usuarios WHERE id=$1',[row.account_id])).rows[0];
+      return { ok:true,user };
+    });
+    if (!result.ok) requireValue(false,result.locked?423:401,result.locked?'La cuenta se bloqueó por demasiados intentos. Espera 15 minutos.':'El código no es válido o ya venció. Solicita uno nuevo.');
+    res.json({ usuario:await makeSession(pool,result.user,config.authSecret) });
+  });
+  app.post('/api/auth/reenviar-codigo',limitLogin,async (req,res) => {
+    const {challengeId}=req.body;
+    requireValue(typeof challengeId==='string' && /^[0-9a-f-]{36}$/i.test(challengeId),400,'La solicitud de verificación no es válida.');
+    const row=(await pool.query(`SELECT c.*,u.id AS account_id,u.nombre,u.email,u.telefono,u.correo_verificado,u.auth_bloqueado_hasta
+      FROM auth_challenges c JOIN usuarios u ON u.id=c.user_id WHERE c.id=$1`,[challengeId])).rows[0];
+    requireValue(row && !row.consumed_at && new Date(row.expires_at).getTime()>Date.now(),410,'El código venció. Inicia sesión para solicitar uno nuevo.');
+    if (row.purpose==='login' && locked(row)) requireValue(false,423,'La cuenta está bloqueada temporalmente. Espera 15 minutos.');
+    requireValue(Date.now()-new Date(row.created_at).getTime()>=60000,429,'Espera un minuto antes de pedir otro código.');
+    const user={id:row.account_id,nombre:row.nombre,email:row.email,telefono:row.telefono};
+    res.json(await startChallenge(user,row.purpose,row.channel));
   });
   app.get('/api/vehiculos',async (_req,res) => res.json((await pool.query('SELECT * FROM vehiculos ORDER BY precio')).rows));
   app.post('/api/vehiculos',...admin,async (req,res) => {
@@ -148,8 +268,8 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
   app.post('/api/apartados/pagar',(_req,res)=>res.status(410).json({error:'El pago simulado fue retirado. Usa Mercado Pago.'}));
   app.use('/api/mercadopago',createCheckout({pool,config,mp,authenticate}));
   app.use((error,_req,res,_next)=> {
-    const messages={'23505':'El registro ya existe.','23503':'No se puede eliminar un registro vinculado a compras.',
-      '42P01':'Falta ejecutar las migraciones de pagos.','42703':'Falta completar las migraciones de pagos.'};
+      const messages={'23505':'El registro ya existe.','23503':'No se puede eliminar un registro vinculado a compras.',
+        '42P01':'Falta ejecutar una migración de base de datos.','42703':'Falta completar una migración de base de datos.'};
     const status=error.status || (messages[error.code] ? 409 : 500);
     if (status>=500) console.error('Error API:',error.code || error.name);
     res.status(status).json({error:error.status ? error.message : messages[error.code] || 'No se pudo completar la operación.'});

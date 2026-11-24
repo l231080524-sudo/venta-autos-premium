@@ -1,7 +1,7 @@
 import Showroom from './components/Showroom';
 import SiteFooter from './components/SiteFooter';
 import SiteHeader from './components/SiteHeader';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 // Importaciones
@@ -28,6 +28,24 @@ export default function App() {
 
   const [carritoCount, setCarritoCount] = useState(0);
   const [modalAuth, setModalAuth] = useState({ abierto: false, modoRegistro: false });
+  const [sessionMessage, setSessionMessage] = useState('');
+  const usuarioRef = useRef(usuario);
+  useEffect(() => { usuarioRef.current = usuario; }, [usuario]);
+
+  const logout = useCallback(() => {
+    const activeUser = usuarioRef.current;
+    if (activeUser?.token) {
+      fetch(`${API_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${activeUser.token}` },
+      }).catch(() => {});
+    }
+    usuarioRef.current = null;
+    setUsuario(null);
+    localStorage.removeItem('usuario_premium');
+    setCarritoCount(0);
+    setModalAuth({ abierto:false, modoRegistro:false });
+  }, [API_URL]);
 
   const actualizarConteoCarrito = useCallback(async () => {
     if (!usuario) {
@@ -39,7 +57,7 @@ export default function App() {
       if (response.ok) {
         const data = await response.json();
         setCarritoCount(data.length);
-      }
+      } else if (response.status===401) window.dispatchEvent(new Event('autopremium:session-expired'));
     } catch (err) {
       console.error("Error actualizando badge del carrito:", err);
     }
@@ -51,16 +69,60 @@ export default function App() {
     actualizarConteoCarrito();
   }, [actualizarConteoCarrito]);
 
+  useEffect(() => {
+    if (!usuario?.token) return undefined;
+    const idleLimit = 30 * 60 * 1000;
+    let lastActivity = Date.now();
+    let idleTimer;
+    let heartbeatBusy = false;
+    const scheduleExpiry = () => {
+      window.clearTimeout(idleTimer);
+      idleTimer = window.setTimeout(logout, idleLimit);
+    };
+    const markActivity = () => {
+      if (Date.now() - lastActivity >= idleLimit) {
+        logout();
+        return;
+      }
+      lastActivity = Date.now();
+      scheduleExpiry();
+    };
+    const heartbeat = async () => {
+      if (heartbeatBusy || Date.now() - lastActivity >= 5 * 60 * 1000) return;
+      heartbeatBusy = true;
+      try {
+        const response = await fetch(`${API_URL}/api/auth/heartbeat`, {
+          method:'POST', headers:{ Authorization:`Bearer ${usuario.token}` },
+        });
+        if (response.status===401) window.dispatchEvent(new Event('autopremium:session-expired'));
+      } catch {
+        // La siguiente solicitud autenticada vuelve a validar la sesión si hay una interrupción de red.
+      } finally { heartbeatBusy = false; }
+    };
+    const expireListener = () => {
+      logout();
+      setSessionMessage('Sesión caducada. Vuelve a iniciar sesión para continuar.');
+    };
+    const activityEvents = ['pointerdown','keydown','touchstart','scroll','wheel'];
+    activityEvents.forEach(name => window.addEventListener(name,markActivity,{passive:true}));
+    window.addEventListener('autopremium:session-expired',expireListener);
+    const heartbeatTimer=window.setInterval(heartbeat,5*60*1000);
+    scheduleExpiry();
+    heartbeat();
+    return () => {
+      window.clearTimeout(idleTimer);
+      window.clearInterval(heartbeatTimer);
+      activityEvents.forEach(name => window.removeEventListener(name,markActivity));
+      window.removeEventListener('autopremium:session-expired',expireListener);
+    };
+  }, [API_URL, logout, usuario?.token]);
+
   const login = (datosUsuario) => {
+    usuarioRef.current = datosUsuario;
     setUsuario(datosUsuario);
+    setSessionMessage('');
     localStorage.setItem('usuario_premium', JSON.stringify(datosUsuario));
     setModalAuth({ abierto: false, modoRegistro: false });
-  };
-
-  const logout = () => {
-    setUsuario(null);
-    localStorage.removeItem('usuario_premium');
-    setCarritoCount(0);
   };
 
   const agregarAlCarrito = async (vehiculoId) => {
@@ -92,6 +154,10 @@ export default function App() {
     <BrowserRouter>
       <a className="skip-link" href="#contenido-principal">Saltar al contenido principal</a>
       <SiteHeader usuario={usuario} carritoCount={carritoCount} logout={logout} setModalAuth={setModalAuth} />
+      {sessionMessage && <div role="alert" className="session-expired-banner">
+        <span>{sessionMessage}</span>
+        <button type="button" onClick={() => { setSessionMessage(''); setModalAuth({abierto:true,modoRegistro:false}); }}>Volver a iniciar sesión</button>
+      </div>}
       {modalAuth.abierto && <AuthModal
         modalAuth={modalAuth}
         setModalAuth={setModalAuth}

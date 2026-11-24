@@ -14,7 +14,10 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.pathname.startsWith('/api/')) {
-      const body = url.pathname === '/api/vehiculos' ? cars : url.pathname.startsWith('/api/auth/') ? { usuario: user }
+      const body = url.pathname === '/api/vehiculos' ? cars : url.pathname === '/api/auth/login' || url.pathname === '/api/auth/registro'
+        ? { requiereCodigo: true, method: 'email', destination: 'p***@example.test', challengeId: 'prueba-auth', expiresInSeconds: 600 }
+        : url.pathname === '/api/auth/verificar' ? { usuario: user }
+        : url.pathname.startsWith('/api/auth/') ? { ok: true }
         : url.pathname === '/api/mercadopago/config' ? { habilitado: true, ambiente: 'prueba', precio_prueba: '1.00', comprador_prueba_email: 'comprador@testuser.com' }
         : url.pathname === '/api/mercadopago/ordenes' ? [] : cars.slice(0, 2);
       return route.fulfill({ json: body });
@@ -94,13 +97,17 @@ for (const theme of ['dark', 'light']) {
     await page.keyboard.press('4');
     await expect(page.getByRole('dialog', { name: 'Iniciar sesión', exact: true })).toBeVisible();
     await page.keyboard.press('Tab');
-    await expect(page.getByLabel('Correo Electrónico')).toBeFocused();
+    await expect(page.getByLabel('Correo electrónico')).toBeFocused();
     await page.keyboard.type(user.email);
     await page.keyboard.press('Tab');
-    await expect(page.getByLabel('Contraseña de Seguridad')).toBeFocused();
+    await expect(page.getByLabel('Contraseña')).toBeFocused();
     await page.keyboard.type('dato-de-prueba-12345');
     await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
     await page.keyboard.press('Enter');
+    await expect(page.getByRole('dialog').getByRole('heading', { name: 'Verificación en dos pasos' }).last()).toBeVisible();
+    await page.getByLabel('Código de seis dígitos').fill('123456');
+    await page.getByRole('button', { name: 'Verificar e iniciar sesión' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(controls.getByRole('button', { name: /^Mi cuenta/ })).toBeFocused();
     await page.keyboard.press('4');
@@ -362,10 +369,10 @@ test('errores de catálogo y de acceso se anuncian con texto', async ({ page }) 
   await audit(page);
   await page.getByRole('button', { name: 'Cuenta y preferencias', exact: true }).click();
   await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
-  await page.getByLabel('Correo Electrónico').fill(user.email);
-  await page.getByLabel('Contraseña de Seguridad').fill('dato-de-prueba');
-  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
-  await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('⚠️ Correo o contraseña incorrectos.');
+  await page.getByLabel('Correo electrónico').fill(user.email);
+  await page.getByLabel('Contraseña').fill('dato-de-prueba');
+  await page.getByRole('button', { name: 'Continuar con verificación' }).click();
+  await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('Correo o contraseña incorrectos.');
   await audit(page);
 });
 
@@ -416,9 +423,11 @@ test('cuenta: acceso, nombre, preferencias y cierre de sesión', async ({ page }
   await audit(page);
   await page.screenshot({ path: 'test-results/cuenta-oscuro.png' });
   await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
-  await page.getByLabel('Correo Electrónico').fill(user.email);
-  await page.getByLabel('Contraseña de Seguridad').fill('dato-de-prueba');
-  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+  await page.getByLabel('Correo electrónico').fill(user.email);
+  await page.getByLabel('Contraseña').fill('dato-de-prueba');
+  await page.getByRole('button', { name: 'Continuar con verificación' }).click();
+  await page.getByLabel('Código de seis dígitos').fill('123456');
+  await page.getByRole('button', { name: 'Verificar e iniciar sesión' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await account.click();
   await expect(page.locator('#panel-cuenta')).toContainText(user.nombre);

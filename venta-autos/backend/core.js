@@ -73,11 +73,13 @@ export async function verifyPassword(password, stored) {
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
-export function sessionToken(userId, secret, now = Date.now()) {
-  const payload = Buffer.from(JSON.stringify({ sub: userId, exp: now + 8 * 60 * 60 * 1000 })).toString('base64url');
+export function sessionToken(userId, secret, now = Date.now(), sessionId = null, maxAge = 8 * 60 * 60 * 1000) {
+  const payloadData = { sub: userId, exp: now + maxAge };
+  if (sessionId) payloadData.sid = sessionId;
+  const payload = Buffer.from(JSON.stringify(payloadData)).toString('base64url');
   return `${payload}.${createHmac('sha256', secret).update(payload).digest('base64url')}`;
 }
-export function sessionUser(token, secret, now = Date.now()) {
+export function sessionClaims(token, secret, now = Date.now()) {
   try {
     const parts = token.split('.');
     if (parts.length !== 2) return null;
@@ -86,8 +88,14 @@ export function sessionUser(token, secret, now = Date.now()) {
     const actual = Buffer.from(signature, 'base64url');
     if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
     const data = JSON.parse(Buffer.from(payload, 'base64url').toString());
-    return Number.isSafeInteger(data.sub) && data.exp > now ? data.sub : null;
+    return Number.isSafeInteger(data.sub) && data.exp > now
+      && (data.sid == null || (typeof data.sid === 'string' && /^[0-9a-f-]{36}$/i.test(data.sid)))
+      ? { userId: data.sub, sessionId: data.sid || null, expiresAt: data.exp }
+      : null;
   } catch { return null; }
+}
+export function sessionUser(token, secret, now = Date.now()) {
+  return sessionClaims(token, secret, now)?.userId || null;
 }
 
 export function webhookValidation({ signature, requestId, dataId, secret }) {

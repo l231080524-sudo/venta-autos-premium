@@ -1,5 +1,7 @@
 # React + Vite
 
+La configuración de inicio de sesión en dos pasos y sus variables de Render están en [AUTENTICACION.md](./AUTENTICACION.md). Antes del despliegue, aplica la migración `db/004_auth_security.sql` en Neon.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

@@ -10,6 +10,7 @@ export async function api(path, user, options = {}) {
     headers: { 'Content-Type': 'application/json', ...authHeaders(user), ...options.headers },
   });
   const data = await response.json();
+  if (response.status === 401) window.dispatchEvent(new Event('autopremium:session-expired'));
   if (!response.ok) throw Object.assign(new Error(data.error || 'No se pudo conectar con el servidor.'), { status: response.status });
   return data;
 }
@@ -21,6 +22,7 @@ export async function downloadReceipt(reference, user) {
     headers: authHeaders(user),
   });
   if (!response.ok) {
+    if (response.status === 401) window.dispatchEvent(new Event('autopremium:session-expired'));
     const data = await response.json().catch(() => ({}));
     throw Object.assign(new Error(data.error || 'No se pudo descargar el comprobante.'), { status: response.status });
   }

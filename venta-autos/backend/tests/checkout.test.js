@@ -28,7 +28,7 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     CREATE TABLE usuarios(id SERIAL PRIMARY KEY,nombre VARCHAR(100),email VARCHAR(150) UNIQUE,password_hash VARCHAR(255),rol user_role DEFAULT 'cliente',telefono VARCHAR(20));
     CREATE TABLE vehiculos(id SERIAL PRIMARY KEY,marca VARCHAR(50),modelo VARCHAR(100),anio INT,precio NUMERIC(12,2),categoria car_category,imagen TEXT,especificaciones JSONB,descripcion TEXT,stock INT);
     CREATE TABLE apartados(id SERIAL PRIMARY KEY,usuario_id INT REFERENCES usuarios(id),vehiculo_id INT REFERENCES vehiculos(id),status order_status DEFAULT 'apartado',UNIQUE(usuario_id,vehiculo_id,status));`);
-  for (let pass = 0; pass < 2; pass++) for (const file of ['001_pagos.sql','002_checkout_orders.sql','003_produccion.sql'])
+  for (let pass = 0; pass < 2; pass++) for (const file of ['001_pagos.sql','002_checkout_orders.sql','003_produccion.sql','004_auth_security.sql'])
     await pool.query(await readFile(new URL(`../../db/${file}`,import.meta.url),'utf8'));
   await pool.query(`INSERT INTO usuarios(nombre,email,password_hash,rol) VALUES
     ('Uno','uno@example.test','legacy123','cliente'),('Dos','dos@example.test','otra','cliente'),('Admin','admin@example.test','admin123','admin');
@@ -37,7 +37,7 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     INSERT INTO apartados(usuario_id,vehiculo_id) VALUES (1,1),(2,2);`);
   const config = { enabled:true,environment:'prueba',testUnitPrice:'1.00',accessToken:'falso',authSecret:'secreto-de-pruebas-'.repeat(3),
     sellerId:'5',applicationId:'9',buyerEmail:'test@testuser.com',webhookSecret:'webhook-test',origins:[] };
-  const provider = new Map(), keys = [], bodies = [];
+  const provider = new Map(), keys = [], bodies = [], sentCodes=[];
   let clock = Date.now(), loseResponse = false, rejectRequest = false, nextStatus = 'created';
   const mp = {
     assertSeller: async () => {},
@@ -61,7 +61,7 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     },
     get: async id => structuredClone(provider.get(id)),
   };
-  server=createApp({pool,config,mp}).listen(0,'127.0.0.1');
+  server=createApp({pool,config,mp,authDelivery:{send:async(channel,destination,code,purpose)=>sentCodes.push({channel,destination,code,purpose})}}).listen(0,'127.0.0.1');
   await new Promise(resolve=>server.once('listening',resolve));
   const base=`http://127.0.0.1:${server.address().port}`;
   async function request(path,body,user=1,method='POST',headers={}) {
@@ -168,12 +168,45 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     assert.equal((await download()).status,409);
     await pool.query("UPDATE pagos SET estado_proveedor='processed',detalle_estado_proveedor='accredited' WHERE mp_payment_id='PAYTEST2'");
   });
-  await t.test('login migra contraseña heredada y entrega sesión; email institucional no concede rol',async()=> {
+  await t.test('contraseña heredada requiere OTP y registro verifica correo',async()=> {
     const login=await request('/api/auth/login',{email:'uno@example.test',password:'legacy123'});
-    assert.equal(login.status,200);assert.ok(login.data.token);
+    assert.equal(login.status,200);assert.equal(login.data.requiereCodigo,true);assert.equal(login.data.method,'email');
     assert.ok((await pool.query('SELECT password_hash FROM usuarios WHERE id=1')).rows[0].password_hash.startsWith('scrypt:'));
-    const signup=await request('/api/auth/registro',{nombre:'Cliente',email:'cliente@autopremium.com',password:'prueba123',telefono:''});
-    assert.equal(signup.data.rol,'cliente');
+    const verified=await request('/api/auth/verificar',{challengeId:login.data.challengeId,code:sentCodes.at(-1).code});
+    assert.equal(verified.status,200);assert.ok(verified.data.usuario.token);
+    const heartbeat=await fetch(base+'/api/auth/heartbeat',{method:'POST',headers:{Authorization:`Bearer ${verified.data.usuario.token}`}});
+    assert.equal(heartbeat.status,200);
+
+    const signup=await request('/api/auth/registro',{nombre:'Cliente',email:'cliente@autopremium.com',password:'prueba123',telefono:'55 3046 7391'});
+    assert.equal(signup.status,201);assert.equal(signup.data.requiereVerificacion,true);
+    assert.equal(sentCodes.at(-1).channel,'email');
+    const registered=await request('/api/auth/verificar',{challengeId:signup.data.challengeId,code:sentCodes.at(-1).code});
+    assert.equal(registered.status,200);assert.equal(registered.data.usuario.rol,'cliente');
+    assert.equal((await pool.query("SELECT correo_verificado FROM usuarios WHERE lower(email)='cliente@autopremium.com'")).rows[0].correo_verificado,true);
+
+    const smsLogin=await request('/api/auth/login',{email:'cliente@autopremium.com',password:'prueba123',method:'sms'});
+    assert.equal(smsLogin.status,200);assert.equal(smsLogin.data.method,'sms');
+    assert.match(sentCodes.at(-1).destination,/7391$/);
+    const smsVerified=await request('/api/auth/verificar',{challengeId:smsLogin.data.challengeId,code:sentCodes.at(-1).code});
+    assert.equal(smsVerified.status,200);
+    assert.equal((await pool.query("SELECT telefono_verificado FROM usuarios WHERE lower(email)='cliente@autopremium.com'")).rows[0].telefono_verificado,true);
+  });
+  await t.test('bloquea la cuenta después de cinco contraseñas incorrectas',async()=> {
+    for(let attempt=0;attempt<4;attempt++) assert.equal((await request('/api/auth/login',{email:'dos@example.test',password:'incorrecta'})).status,401);
+    assert.equal((await request('/api/auth/login',{email:'dos@example.test',password:'incorrecta'})).status,423);
+    assert.equal((await request('/api/auth/login',{email:'dos@example.test',password:'otra'})).status,423);
+    await pool.query("UPDATE usuarios SET auth_bloqueado_hasta=NOW()-INTERVAL '1 second' WHERE id=2");
+    assert.equal((await request('/api/auth/login',{email:'dos@example.test',password:'otra'})).status,200);
+  });
+  await t.test('sesión se invalida después de treinta minutos de inactividad',async()=> {
+    const login=await request('/api/auth/login',{email:'uno@example.test',password:'legacy123'});
+    const code=sentCodes.at(-1).code;
+    const verified=await request('/api/auth/verificar',{challengeId:login.data.challengeId,code});
+    assert.equal(verified.status,200);
+    const tokenPayload=JSON.parse(Buffer.from(verified.data.usuario.token.split('.')[0],'base64url').toString());
+    await pool.query("UPDATE auth_sessions SET last_seen_at=NOW()-INTERVAL '31 minutes' WHERE id=$1",[tokenPayload.sid]);
+    const expired=await fetch(base+'/api/auth/heartbeat',{method:'POST',headers:{Authorization:`Bearer ${verified.data.usuario.token}`}});
+    assert.equal(expired.status,401);
   });
   await t.test('cancelar borrador libera carrito; error definitivo permite otro intento sin inventar confirmación',async()=> {
     let draft=randomUUID(),draftPath=`/api/mercadopago/ordenes/${draft}`;
