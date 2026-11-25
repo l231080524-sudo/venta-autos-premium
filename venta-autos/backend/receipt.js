@@ -29,6 +29,8 @@ export async function createReceipt({ order, payment, items }, issuedAt = new Da
   }
   function text(value, { size = 10.5, bold = false, color = '#15334D', tag = 'P', gap = 6 } = {}) {
     // El contenido sigue el mismo orden visual y de lectura para lectores de pantalla.
+    // PDF text can retain whitespace, but not the other ASCII control codes.
+    // eslint-disable-next-line no-control-regex
     const content = String(value ?? 'No registrado').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
     doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(size);
     const height = doc.heightOfString(content, { width, lineGap: 2 });

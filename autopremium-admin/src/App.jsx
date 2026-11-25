@@ -1,4 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
+
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
+const ADMIN_ROLES = ['admin', 'superadmin', 'admin_restringido'];
+
+async function authRequest(path, payload) {
+  const response = await fetch(`${API_URL}/api/auth/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'No se pudo completar la verificación.');
+  return data;
+}
 
 // Sesión emitida por el backend: el servidor comprueba el rol en PostgreSQL.
 // El administrador usa la misma API y AUTH_SECRET que la página pública.
@@ -8,9 +22,12 @@ async function adminFetch(url, options = {}) {
   const response = await fetch(url, { ...options, headers: {
     ...options.headers, ...(session?.token ? { Authorization: `Bearer ${session.token}` } : {}),
   } });
-  if (response.status === 401 && !url.endsWith('/api/auth/login')) {
-    localStorage.removeItem('admin_session');
-    throw new Error('Tu sesión venció. Cierra sesión y vuelve a iniciar sesión.');
+  if (response.status === 401) {
+    if (session && localStorage.getItem('admin_session') === JSON.stringify(session)) {
+      localStorage.removeItem('admin_session');
+      window.dispatchEvent(new Event('admin-session-expired'));
+    }
+    throw new Error('Tu sesión venció. Vuelve a iniciar sesión.');
   }
   return response;
 }
@@ -172,12 +189,14 @@ export default function App() {
       const guardado = localStorage.getItem('admin_session');
       const session = guardado ? JSON.parse(guardado) : null;
       return session?.token ? session : null;
-    } catch (e) { return null; }
+    } catch { return null; }
   });
 
   const [loginEmail, setLoginEmail] = useState('');
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   const [loginPassword, setLoginPassword] = useState('');
+  const [loginMethod, setLoginMethod] = useState('email');
+  const [challenge, setChallenge] = useState(null);
+  const [otp, setOtp] = useState('');
   const [loginError, setLoginError] = useState(null);
   const [loginLoading, setLoginLoading] = useState(false);
 
@@ -204,10 +223,10 @@ export default function App() {
   const [stock, setStock] = useState(1);
   const [specsInput, setSpecsInput] = useState([{ clave: 'motor', valor: '' }]);
 
-  const mostrarMensaje = (tipo, mensaje) => {
+  const mostrarMensaje = useCallback((tipo, mensaje) => {
     setNotificacion({ tipo, mensaje });
     setTimeout(() => setNotificacion({ tipo: '', mensaje: '' }), 5000);
-  };
+  }, []);
 
   const manejarLoginSeguro = async (e) => {
     e.preventDefault();
@@ -215,27 +234,24 @@ export default function App() {
     setLoginLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword })
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Credenciales incorrectas.');
-
-      const usuarioLogueado = data.usuario || data.user || data;
-
-      // VALIDACIÓN INCLUYENDO EL NUEVO ROL
-      const rolesPermitidos = ['admin', 'superadmin', 'admin_restringido'];
-      const esAdminReal = rolesPermitidos.includes(usuarioLogueado.rol) && usuarioLogueado.token;
-
-      if (!esAdminReal) {
-        throw new Error('ACCESO DENEGADO. Nivel de autorización insuficiente.');
+      if (!challenge) {
+        const data = await authRequest('login', { email: loginEmail, password: loginPassword, method: loginMethod });
+        if (!data.requiereCodigo || !data.challengeId) throw new Error('No pudo iniciarse la verificación.');
+        setChallenge(data);
+        setLoginPassword('');
+        return;
       }
 
+      const { usuario: usuarioLogueado } = await authRequest('verificar', { challengeId: challenge.challengeId, code: otp });
+      if (!usuarioLogueado?.token || !ADMIN_ROLES.includes(usuarioLogueado.rol)) {
+        setChallenge(null);
+        setOtp('');
+        throw new Error('Acceso reservado para administradores.');
+      }
       setAdminUser(usuarioLogueado);
       localStorage.setItem('admin_session', JSON.stringify(usuarioLogueado));
+      setChallenge(null);
+      setOtp('');
     } catch (err) {
       setLoginError(err.message);
     } finally {
@@ -244,13 +260,16 @@ export default function App() {
   };
 
   const logoutAdmin = () => {
+    void adminFetch(`${API_URL}/api/auth/logout`, { method: 'POST' }).catch(() => {});
     setAdminUser(null);
     localStorage.removeItem('admin_session');
+    setVehiculos([]);
+    setUsuariosDb([]);
     setLoginEmail('');
     setLoginPassword('');
   };
 
-  const cargarDatos = async () => {
+  const cargarDatos = useCallback(async () => {
     try {
       setLoadingDatos(true);
       const [resVehiculos, resUsuarios] = await Promise.all([
@@ -261,15 +280,30 @@ export default function App() {
       if (resVehiculos && resVehiculos.ok) setVehiculos(await resVehiculos.json());
       if (resUsuarios && resUsuarios.ok) setUsuariosDb(await resUsuarios.json());
     } catch (err) {
-      mostrarMensaje('error', 'Error al conectar con la base de datos.');
+      mostrarMensaje('error', err.message);
     } finally {
       setLoadingDatos(false);
     }
-  };
+  }, [mostrarMensaje]);
 
   useEffect(() => {
-    if (adminUser) cargarDatos();
-  }, [adminUser]);
+    if (!adminUser) return;
+    const timer = setTimeout(cargarDatos, 0);
+    const expire = () => {
+      setAdminUser(null);
+      setVehiculos([]);
+      setUsuariosDb([]);
+      setLoginError('Tu sesión venció. Vuelve a iniciar sesión.');
+    };
+    const check = () => { void adminFetch(`${API_URL}/api/auth/heartbeat`, { method: 'POST' }).catch(() => {}); };
+    window.addEventListener('admin-session-expired', expire);
+    window.addEventListener('focus', check);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('admin-session-expired', expire);
+      window.removeEventListener('focus', check);
+    };
+  }, [adminUser, cargarDatos]);
 
   // Cálculos
   const totalStock = vehiculos.reduce((acc, auto) => acc + Number(auto.stock), 0);
@@ -290,7 +324,7 @@ export default function App() {
         setMarca(''); setModelo(''); setPrecio(''); setImagen(''); setDescripcion(''); setStock(1);
         cargarDatos();
       } else { const data = await response.json(); mostrarMensaje('error', data.error); }
-    } catch (err) { mostrarMensaje('error', 'Error de red.'); }
+    } catch { mostrarMensaje('error', 'Error de red.'); }
   };
 
   const handleSaveVehiculo = async (id, datos) => {
@@ -298,7 +332,7 @@ export default function App() {
       const response = await adminFetch(`${API_URL}/api/vehiculos/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) });
       if (response.ok) { mostrarMensaje('exito', '✓ Registro actualizado.'); cargarDatos(); } 
       else { const data = await response.json(); mostrarMensaje('error', data.error); }
-    } catch (err) { mostrarMensaje('error', 'Error de conexión.'); }
+    } catch { mostrarMensaje('error', 'Error de conexión.'); }
   };
 
   const eliminarVehiculo = async (id) => {
@@ -307,7 +341,7 @@ export default function App() {
       const response = await adminFetch(`${API_URL}/api/vehiculos/${id}`, { method: 'DELETE' });
       if (response.ok) { mostrarMensaje('exito', 'Unidad dada de baja.'); cargarDatos(); } 
       else { mostrarMensaje('error', 'No se pudo eliminar.'); }
-    } catch (err) { mostrarMensaje('error', 'Error de red.'); }
+    } catch { mostrarMensaje('error', 'Error de red.'); }
   };
 
   const registrarNuevoAdmin = async (e) => {
@@ -329,7 +363,7 @@ export default function App() {
       } else {
         const data = await response.json(); mostrarMensaje('error', data.error || 'No se pudo registrar la cuenta.');
       }
-    } catch (err) { mostrarMensaje('error', 'Error de conexión.'); }
+    } catch { mostrarMensaje('error', 'Error de conexión.'); }
   };
 
   const handleSaveUsuario = async (id, datos) => {
@@ -346,7 +380,7 @@ export default function App() {
         const data = await response.json(); 
         mostrarMensaje('error', data.error || 'Error al actualizar privilegios.'); 
       }
-    } catch (err) { mostrarMensaje('error', 'Error de conexión.'); }
+    } catch { mostrarMensaje('error', 'Error de conexión.'); }
   };
 
   // Para revocar cuentas de administradores
@@ -356,7 +390,7 @@ export default function App() {
       const response = await adminFetch(`${API_URL}/api/usuarios/${id}`, { method: 'DELETE' });
       if (response.ok) { mostrarMensaje('exito', 'Cuenta revocada exitosamente.'); cargarDatos(); } 
       else { const data = await response.json(); mostrarMensaje('error', data.error || 'Error al revocar cuenta.'); }
-    } catch (err) { mostrarMensaje('error', 'Error de red.'); }
+    } catch { mostrarMensaje('error', 'Error de red.'); }
   };
 
   // NUEVA FUNCIÓN: Degradar Clientes con condición de cero compras
@@ -376,7 +410,7 @@ export default function App() {
         const data = await response.json(); 
         mostrarMensaje('error', data.error || 'Error al degradar al cliente.'); 
       }
-    } catch (err) { mostrarMensaje('error', 'Error de conexión al degradar.'); }
+    } catch { mostrarMensaje('error', 'Error de conexión al degradar.'); }
   };
 
   // FILTROS INTELIGENTES (Actualizados para excluir/incluir al admin_restringido)
@@ -414,21 +448,37 @@ export default function App() {
             <p className="text-xs text-zinc-500 mt-2 tracking-widest uppercase">Sistema Privado de Gestión AutoPremium</p>
           </div>
           {loginError && (
-            <div className="bg-red-950/40 border border-red-900 text-red-500 text-xs font-bold uppercase tracking-wider p-4 rounded-xl mb-6 text-center shadow-[0_0_15px_rgba(220,38,38,0.2)] animate-pulse">
+            <div role="alert" className="bg-red-950/40 border border-red-900 text-red-500 text-xs font-bold uppercase tracking-wider p-4 rounded-xl mb-6 text-center shadow-[0_0_15px_rgba(220,38,38,0.2)] animate-pulse">
               {loginError}
             </div>
           )}
           <form onSubmit={manejarLoginSeguro} className="space-y-5">
+            {challenge ? (
+              <div className="space-y-3">
+                <p role="status">Enviamos un código a {challenge.destination}.</p>
+                <label htmlFor="admin-otp">Código de seis dígitos</label>
+                <input id="admin-otp" required autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} className="w-full bg-black border border-zinc-800 rounded-xl p-3" />
+                <button type="button" disabled={loginLoading} onClick={() => { setChallenge(null); setOtp(''); setLoginError(null); }} className="underline">Volver al acceso</button>
+              </div>
+            ) : (<>
             <div>
-              <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold block mb-1.5">Correo Corporativo</label>
-              <input required type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} placeholder="admin@autopremium.com" className="w-full bg-black border border-zinc-800 focus:border-red-600 rounded-xl p-3 text-sm text-white focus:outline-none transition shadow-inner" />
+              <label htmlFor="admin-login-email" className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold block mb-1.5">Correo Corporativo</label>
+              <input id="admin-login-email" autoComplete="username" required type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} placeholder="admin@autopremium.com" className="w-full bg-black border border-zinc-800 focus:border-red-600 rounded-xl p-3 text-sm text-white focus:outline-none transition shadow-inner" />
             </div>
             <div>
-              <label className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold block mb-1.5">Contraseña de Seguridad</label>
-              <input required type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="••••••••" className="w-full bg-black border border-zinc-800 focus:border-red-600 rounded-xl p-3 text-sm text-white focus:outline-none transition shadow-inner" />
+              <label htmlFor="admin-login-password" className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold block mb-1.5">Contraseña de Seguridad</label>
+              <input id="admin-login-password" autoComplete="current-password" required type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="••••••••" className="w-full bg-black border border-zinc-800 focus:border-red-600 rounded-xl p-3 text-sm text-white focus:outline-none transition shadow-inner" />
             </div>
+            <div>
+              <label htmlFor="admin-login-method">Recibir código por</label>
+              <select id="admin-login-method" value={loginMethod} onChange={e => setLoginMethod(e.target.value)} className="w-full bg-black border border-zinc-800 rounded-xl p-3">
+                <option value="email">Correo electrónico</option>
+                <option value="sms">SMS al teléfono registrado</option>
+              </select>
+            </div>
+            </>)}
             <button type="submit" disabled={loginLoading} className={`w-full font-black text-xs uppercase tracking-widest py-4 rounded-xl transition duration-300 shadow-[0_0_20px_rgba(220,38,38,0.4)] mt-4 ${loginLoading ? 'bg-red-800 text-red-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500 text-white'}`}>
-              {loginLoading ? 'Verificando Autorización...' : 'Desbloquear Sistema'}
+              {loginLoading ? 'Verificando…' : challenge ? 'Verificar código' : 'Continuar con verificación'}
             </button>
           </form>
         </div>
