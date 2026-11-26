@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import { createApp } from '../../server.js';
 import { sessionToken } from '../core.js';
+import { totpCode } from '../totp.js';
 
 // Solo base aislada en loopback/55439. Jamás se utiliza DATABASE_URL ni la base del proyecto.
 const url = process.env.TEST_DATABASE_URL;
@@ -28,7 +29,7 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     CREATE TABLE usuarios(id SERIAL PRIMARY KEY,nombre VARCHAR(100),email VARCHAR(150) UNIQUE,password_hash VARCHAR(255),rol user_role DEFAULT 'cliente',telefono VARCHAR(20));
     CREATE TABLE vehiculos(id SERIAL PRIMARY KEY,marca VARCHAR(50),modelo VARCHAR(100),anio INT,precio NUMERIC(12,2),categoria car_category,imagen TEXT,especificaciones JSONB,descripcion TEXT,stock INT);
     CREATE TABLE apartados(id SERIAL PRIMARY KEY,usuario_id INT REFERENCES usuarios(id),vehiculo_id INT REFERENCES vehiculos(id),status order_status DEFAULT 'apartado',UNIQUE(usuario_id,vehiculo_id,status));`);
-  for (let pass = 0; pass < 2; pass++) for (const file of ['001_pagos.sql','002_checkout_orders.sql','003_produccion.sql','004_auth_security.sql','005_twilio_verify.sql'])
+  for (let pass = 0; pass < 2; pass++) for (const file of ['001_pagos.sql','002_checkout_orders.sql','003_produccion.sql','004_auth_security.sql','005_twilio_verify.sql','006_auth_totp.sql'])
     await pool.query(await readFile(new URL(`../../db/${file}`,import.meta.url),'utf8'));
   await pool.query(`INSERT INTO usuarios(nombre,email,password_hash,rol) VALUES
     ('Uno','uno@example.test','legacy123','cliente'),('Dos','dos@example.test','otra','cliente'),('Admin','admin@example.test','admin123','admin');
@@ -65,8 +66,8 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
   server=createApp({pool,config,mp,authDelivery}).listen(0,'127.0.0.1');
   await new Promise(resolve=>server.once('listening',resolve));
   const base=`http://127.0.0.1:${server.address().port}`;
-  async function request(path,body,user=1,method='POST',headers={}) {
-    const response=await fetch(base+path,{method,headers:{'Content-Type':'application/json',Authorization:`Bearer ${sessionToken(user,config.authSecret)}`,...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
+  async function request(path,body,user=1,method='POST',headers={},origin=base) {
+    const response=await fetch(origin+path,{method,headers:{'Content-Type':'application/json',Authorization:`Bearer ${sessionToken(user,config.authSecret)}`,...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
     const result=await response.text(); return {status:response.status,data:result?JSON.parse(result):null};
   }
   // Forma real del Brick mexicano: puede no pedir ni entregar identificación.
@@ -216,6 +217,47 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
       delete authDelivery.startSmsVerification;
       delete authDelivery.checkSmsVerification;
     }
+  });
+  await t.test('activa Google Authenticator y verifica el acceso sin enviar un código ni permitir reutilizarlo', async subtest => {
+    const isolatedServer = createApp({ pool, config, mp, authDelivery }).listen(0,'127.0.0.1');
+    subtest.after(() => new Promise(resolve => isolatedServer.close(resolve)));
+    await new Promise(resolve => isolatedServer.once('listening', resolve));
+    const origin = `http://127.0.0.1:${isolatedServer.address().port}`;
+    const send = (path, body, method='POST', headers={}) => request(path, body, 1, method, headers, origin);
+    const credentials = { email: 'uno@example.test', password: 'legacy123' };
+    async function authenticatorLogin() {
+      return send('/api/auth/login', { ...credentials, method: 'totp' });
+    }
+    assert.equal((await authenticatorLogin()).status, 409);
+    const login = await send('/api/auth/login', credentials);
+    const session = await send('/api/auth/verificar', { challengeId: login.data.challengeId, code: sentCodes.at(-1).code });
+    const headers = { Authorization: `Bearer ${session.data.usuario.token}` };
+    const endpoint = '/api/auth/autenticador';
+    assert.equal((await send(endpoint, undefined, 'GET', headers)).data.enabled, false);
+    assert.equal((await send(endpoint, { password: 'incorrecta' }, 'POST', headers)).status, 403);
+    const setup = await send(endpoint, { password: credentials.password }, 'POST', headers);
+    assert.match(setup.data.qr, /^data:image\/png;base64,/);
+    assert.match(setup.data.manualKey, /^[A-Z2-7]{32}$/);
+    const { secret } = (await pool.query('SELECT secret FROM auth_totp WHERE user_id=1')).rows[0];
+    assert.ok(secret.data && secret.tag && secret.iv);
+    assert.equal(JSON.stringify(secret).includes(setup.data.manualKey), false);
+    const bits = [...setup.data.manualKey].map(char => 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'.indexOf(char).toString(2).padStart(5, '0')).join('');
+    const key = Buffer.from(bits.match(/.{8}/g).map(byte => parseInt(byte, 2)));
+    const step = Math.floor(Date.now() / 30_000);
+    const confirmed = await send(`${endpoint}/confirmar`, { code: totpCode(key, step) }, 'POST', headers);
+    assert.equal(confirmed.status, 200);
+    assert.equal((await send(endpoint, { password: credentials.password }, 'POST', headers)).status, 409);
+
+    const before = sentCodes.length;
+    const next = await authenticatorLogin();
+    assert.equal(next.status, 200);
+    assert.equal(next.data.method, 'totp');
+    assert.equal(sentCodes.length, before);
+    assert.equal((await send('/api/auth/reenviar-codigo', { challengeId: next.data.challengeId })).status, 400);
+    const code = totpCode(key, step + 1);
+    assert.equal((await send('/api/auth/verificar', { challengeId: next.data.challengeId, code })).status, 200);
+    const replay = await authenticatorLogin();
+    assert.equal((await send('/api/auth/verificar', { challengeId: replay.data.challengeId, code })).status, 401);
   });
   await t.test('bloquea la cuenta después de cinco contraseñas incorrectas',async()=> {
     for(let attempt=0;attempt<4;attempt++) assert.equal((await request('/api/auth/login',{email:'dos@example.test',password:'incorrecta'})).status,401);

@@ -171,13 +171,18 @@ export function createAuthDelivery({ env = process.env, fetcher = fetch } = {}) 
 }
 
 export async function createOtpChallenge({ pool, delivery, user, channel, purpose, secret, now = Date.now() }) {
-  requireValue(['email', 'sms'].includes(channel), 400, 'Selecciona un método de verificación válido.');
+  requireValue(['email', 'sms'].includes(channel) || (channel === 'totp' && purpose === 'login'),
+    400, 'Selecciona un método de verificación válido.');
   requireValue(['verify_email', 'login'].includes(purpose), 400, 'No se pudo iniciar la verificación.');
-  const destination = channel === 'email' ? user.email : normalizePhone(user.telefono || '');
+  const destination = channel === 'sms' ? normalizePhone(user.telefono || '') : user.email;
   const id = randomUUID();
   const code = String(randomInt(100000, 1000000));
   await transaction(pool, async db => {
     await db.query('SELECT id FROM usuarios WHERE id=$1 FOR UPDATE', [user.id]);
+    if (channel === 'totp') {
+      const factor = await db.query('SELECT 1 FROM auth_totp WHERE user_id=$1 AND enabled_at IS NOT NULL', [user.id]);
+      requireValue(factor.rowCount, 409, 'Primero inicia sesión por correo y activa la app autenticadora en Mi cuenta.');
+    }
     const { rows: counts } = await db.query(
       `SELECT COUNT(*)::int AS count FROM auth_challenges
        WHERE user_id=$1 AND purpose=$2 AND created_at > NOW() - INTERVAL '15 minutes'`,
@@ -201,7 +206,7 @@ export async function createOtpChallenge({ pool, delivery, user, channel, purpos
         'UPDATE auth_challenges SET sms_verification_sid=$2 WHERE id=$1 AND consumed_at IS NULL', [id, sid],
       );
       requireValue(attached.rowCount === 1, 409, 'Ya se solicitó otro código. Usa el intento más reciente.');
-    } else {
+    } else if (channel !== 'totp') {
       await delivery.send(channel, destination, code, purpose);
     }
   } catch (error) {
@@ -211,7 +216,7 @@ export async function createOtpChallenge({ pool, delivery, user, channel, purpos
   return {
     challengeId: id,
     method: channel,
-    destination: maskDestination(channel, destination),
+    destination: channel === 'totp' ? null : maskDestination(channel, destination),
     expiresInSeconds: AUTH_OTP_TTL_MS / 1000,
   };
 }

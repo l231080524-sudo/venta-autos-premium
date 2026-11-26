@@ -9,6 +9,7 @@ import { createCheckout } from './backend/checkout.js';
 import { createChat } from './backend/chat.js';
 import { cents, requireValue, transaction, hashPassword, verifyPassword, sessionToken, sessionClaims } from './backend/core.js';
 import { AUTH_OTP_MAX_ATTEMPTS, AUTH_SESSION_IDLE_MS, AUTH_SESSION_MAX_MS, createAuthDelivery, createOtpChallenge, normalizePhone, otpMatches } from './backend/auth.js';
+import { registerTotpRoutes, verifyAuthenticator } from './backend/totp.js';
 
 const AUTH_FAILURE_LIMIT = 5;
 const AUTH_FAILURE_WINDOW_MS = 15 * 60 * 1000;
@@ -89,6 +90,7 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
     requireValue(entry.count<=30,429,'Demasiados intentos. Espera un minuto.'); next();
   };
   app.get('/api/health',async (_req,res) => { await pool.query('SELECT 1'); res.json({ok:true}); });
+  registerTotpRoutes(app, { pool, authenticate, limitLogin, serverSecret: config.authSecret });
   app.post('/api/auth/heartbeat',authenticate,(_req,res) => res.json({ ok:true }));
   app.post('/api/auth/logout',authenticate,async (req,res) => {
     if (req.authSession) await pool.query('UPDATE auth_sessions SET revoked_at=NOW() WHERE id=$1', [req.authSession.id]);
@@ -98,7 +100,7 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
     requireValue(config.authSecret.length>=32,503,'Falta configurar AUTH_SECRET en el servidor.');
     const {email,password,method='email'}=req.body;
     requireValue(typeof email==='string' && typeof password==='string' && password.length<=256,400,'Datos de acceso inválidos.');
-    requireValue(['email','sms'].includes(method),400,'Selecciona un método de verificación válido.');
+    requireValue(['email','sms','totp'].includes(method),400,'Selecciona un método de verificación válido.');
     const user=(await pool.query('SELECT * FROM usuarios WHERE lower(email)=lower($1)',[email.trim()])).rows[0];
     if (user && locked(user)) requireValue(false,423,'La cuenta está bloqueada temporalmente. Espera 15 minutos antes de intentarlo de nuevo.');
     const passwordValid = user && await verifyPassword(password,user.password_hash);
@@ -145,10 +147,11 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
     requireValue(typeof challengeId==='string' && /^[0-9a-f-]{36}$/i.test(challengeId)
       && typeof code==='string' && /^\d{6}$/.test(code),400,'Escribe el código de seis dígitos.');
     const result=await transaction(pool,async db => {
+      await db.query('SELECT id FROM usuarios WHERE id=(SELECT user_id FROM auth_challenges WHERE id=$1) FOR UPDATE', [challengeId]);
       const row=(await db.query(`SELECT c.*,u.id AS account_id,u.nombre,u.email,u.rol,u.telefono,u.correo_verificado,
         u.auth_fallos,u.auth_ventana,u.auth_bloqueado_hasta
         FROM auth_challenges c JOIN usuarios u ON u.id=c.user_id
-        WHERE c.id=$1 FOR UPDATE OF c,u`,[challengeId])).rows[0];
+        WHERE c.id=$1 FOR UPDATE OF c`,[challengeId])).rows[0];
       if (!row || row.consumed_at || new Date(row.expires_at).getTime()<=Date.now() || Number(row.attempts)>=AUTH_OTP_MAX_ATTEMPTS)
         return { ok:false };
       if (row.purpose==='login' && locked(row)) return { ok:false, locked:true };
@@ -156,6 +159,8 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
       if (row.channel === 'sms' && row.sms_verification_sid) {
         requireValue(authDelivery.checkSmsVerification, 503, 'La verificación por SMS no está disponible.');
         matches = await authDelivery.checkSmsVerification(row.sms_verification_sid, code);
+      } else if (row.channel === 'totp') {
+        matches = await verifyAuthenticator(db, row.account_id, code, config.authSecret);
       } else {
         matches = otpMatches(challengeId,code,row.code_hash,config.authSecret);
       }
@@ -165,7 +170,7 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
           [challengeId,attempts,AUTH_OTP_MAX_ATTEMPTS]);
         const account={id:row.account_id,auth_fallos:row.auth_fallos,auth_ventana:row.auth_ventana,auth_bloqueado_hasta:row.auth_bloqueado_hasta};
         const isLocked=row.purpose==='login' && await recordAuthFailure(db,account);
-        return { ok:false, locked:isLocked };
+        return { ok:false, locked:isLocked, usesAuthenticator:row.channel==='totp' };
       }
       await db.query('UPDATE auth_challenges SET consumed_at=NOW() WHERE id=$1',[challengeId]);
       if (row.purpose==='verify_email') await db.query('UPDATE usuarios SET correo_verificado=TRUE WHERE id=$1',[row.account_id]);
@@ -176,7 +181,9 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
       const user=(await db.query('SELECT id,nombre,email,rol FROM usuarios WHERE id=$1',[row.account_id])).rows[0];
       return { ok:true,user };
     });
-    if (!result.ok) requireValue(false,result.locked?423:401,result.locked?'La cuenta se bloqueó por demasiados intentos. Espera 15 minutos.':'El código no es válido o ya venció. Solicita uno nuevo.');
+    if (!result.ok) requireValue(false,result.locked?423:401,result.locked?'La cuenta se bloqueó por demasiados intentos. Espera 15 minutos.'
+      : result.usesAuthenticator ? 'El código no es válido o ya se usó. Espera el siguiente código de la app.'
+        : 'El código no es válido o ya venció. Inicia la verificación de nuevo.');
     res.json({ usuario:await makeSession(pool,result.user,config.authSecret) });
   });
   app.post('/api/auth/reenviar-codigo',limitLogin,async (req,res) => {
@@ -185,6 +192,7 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
     const row=(await pool.query(`SELECT c.*,u.id AS account_id,u.nombre,u.email,u.telefono,u.correo_verificado,u.auth_bloqueado_hasta
       FROM auth_challenges c JOIN usuarios u ON u.id=c.user_id WHERE c.id=$1`,[challengeId])).rows[0];
     requireValue(row && !row.consumed_at && new Date(row.expires_at).getTime()>Date.now(),410,'El código venció. Inicia sesión para solicitar uno nuevo.');
+    requireValue(row.channel!=='totp',400,'Usa el código actual de tu app autenticadora.');
     if (row.purpose==='login' && locked(row)) requireValue(false,423,'La cuenta está bloqueada temporalmente. Espera 15 minutos.');
     requireValue(Date.now()-new Date(row.created_at).getTime()>=60000,429,'Espera un minuto antes de pedir otro código.');
     const user={id:row.account_id,nombre:row.nombre,email:row.email,telefono:row.telefono};

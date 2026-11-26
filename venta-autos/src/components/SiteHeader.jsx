@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import AccessibilityWidget from './AccessibilityWidget';
 import KeyboardNavigation from './KeyboardNavigation';
+import AuthenticatorDialog from './AuthenticatorDialog';
 
 function readPreference(key, fallback) {
   try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
@@ -11,6 +12,7 @@ export default function SiteHeader({ usuario, carritoCount, logout, setModalAuth
   const { pathname, hash, key } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [authenticatorUser, setAuthenticatorUser] = useState(null);
   const [theme, setTheme] = useState(() => readPreference('ap-theme', 'dark'));
   const [scale, setScale] = useState(() => readPreference('ap-text-size', '100'));
   const [contrast, setContrast] = useState(() => readPreference('ap-contrast', 'false') === 'true');
@@ -110,7 +112,12 @@ export default function SiteHeader({ usuario, carritoCount, logout, setModalAuth
                   profileButton.current?.focus(); setProfileOpen(false);
                   setModalAuth({ abierto: true, modoRegistro: false });
                 }}>Iniciar sesión</button>}
-              {usuario && <button className="logout-button" onClick={() => { profileButton.current?.focus(); logout(); }}>Cerrar sesión</button>}
+              {usuario && <>
+                <button className="primary-button" onClick={() => {
+                  profileButton.current?.focus(); setProfileOpen(false); setAuthenticatorUser(usuario.token);
+                }}>App autenticadora</button>
+                <button className="logout-button" onClick={() => { profileButton.current?.focus(); logout(); }}>Cerrar sesión</button>
+              </>}
             </section>}
           </div>
         </div>
@@ -118,6 +125,7 @@ export default function SiteHeader({ usuario, carritoCount, logout, setModalAuth
       </div>
       {keyboard && <KeyboardNavigation onAccount={keyboardAccount} signedIn={Boolean(usuario)} onNavigate={closePanels} onDisable={() => { setKeyboard(false); profileButton.current?.focus(); }} />}
       <AccessibilityWidget onAccount={keyboardAccount} {...{ theme, setTheme, scale, setScale, contrast, setContrast, monochrome, setMonochrome, keyboard, setKeyboard }} />
+      {authenticatorUser && authenticatorUser === usuario?.token && <AuthenticatorDialog user={usuario} onClose={() => setAuthenticatorUser(null)} />}
     </header>
   );
 }

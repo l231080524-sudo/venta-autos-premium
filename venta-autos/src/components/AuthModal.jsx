@@ -95,6 +95,7 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
 
   const titulo = paso === 'codigo' ? (desafio?.requiereVerificacion ? 'Verifica tu correo' : 'Verificación en dos pasos')
     : esRegistro ? 'Crear cuenta' : 'Iniciar sesión';
+  const usaAutenticador = desafio?.method === 'totp';
 
   return (
     <AccessibleDialog title={titulo} onClose={() => setModalAuth({ abierto: false, modoRegistro: false })}>
@@ -104,7 +105,8 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
         </h2>
         <p className="text-muted text-sm mb-6">
           {paso === 'codigo'
-            ? `Enviamos un código a ${desafio?.destination || 'tu método de verificación'}. El código vence en 10 minutos.`
+            ? usaAutenticador ? 'Abre tu app autenticadora y escribe el código actual de AutoPremium.'
+              : `Enviamos un código a ${desafio?.destination || 'tu método de verificación'}. El código vence en 10 minutos.`
             : esRegistro ? 'Completa tus datos para crear una cuenta.' : 'Ingresa con tu correo y contraseña; después confirmarás con un código de un solo uso.'}
         </p>
 
@@ -152,6 +154,10 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
                 <input type="radio" name="auth-method" value="sms" checked={metodo === 'sms'} onChange={() => setMetodo('sms')} />
                 Enviar código por SMS al teléfono de la cuenta
               </label>
+              <label className="flex items-center gap-2 text-sm text-content">
+                <input type="radio" name="auth-method" value="totp" checked={metodo === 'totp'} onChange={() => setMetodo('totp')} />
+                Usar código de la app autenticadora
+              </label>
             </fieldset>}
 
             <button type="submit" disabled={loading}
@@ -180,10 +186,10 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
               className="w-full text-content font-bold py-4 rounded transition text-sm bg-panel hover:bg-panel disabled:cursor-not-allowed">
               {loading ? 'Verificando…' : 'Verificar e iniciar sesión'}
             </button>
-            <button type="button" disabled={loading || esperaReenvio > 0} onClick={reenviarCodigo}
+            {!usaAutenticador && <button type="button" disabled={loading || esperaReenvio > 0} onClick={reenviarCodigo}
               className="w-full border border-line rounded p-3 text-sm text-content disabled:opacity-60">
               {esperaReenvio > 0 ? `Solicitar otro código en ${esperaReenvio} s` : 'Enviar otro código'}
-            </button>
+            </button>}
             <button type="button" disabled={loading} onClick={volver} className="w-full text-sm underline text-muted">
               Volver al acceso
             </button>
