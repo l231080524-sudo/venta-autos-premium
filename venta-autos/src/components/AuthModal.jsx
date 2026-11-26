@@ -141,7 +141,6 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
               <input id="auth-telefono" name="auth-telefono" autoComplete="tel" required type="tel" maxLength={30}
                 value={telefono} onChange={event => setTelefono(event.target.value)} placeholder="+52 55 1234 5678"
                 className="w-full bg-surface border border-line rounded p-3 text-sm text-content" />
-              <p className="text-muted text-xs mt-1">Se podrá usar para verificar tu identidad por SMS.</p>
             </div>}
 
             {!esRegistro && <fieldset className="space-y-2">
@@ -149,10 +148,6 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
               <label className="flex items-center gap-2 text-sm text-content">
                 <input type="radio" name="auth-method" value="email" checked={metodo === 'email'} onChange={() => setMetodo('email')} />
                 Enviar código al correo
-              </label>
-              <label className="flex items-center gap-2 text-sm text-content">
-                <input type="radio" name="auth-method" value="sms" checked={metodo === 'sms'} onChange={() => setMetodo('sms')} />
-                Enviar código por SMS al teléfono de la cuenta
               </label>
               <label className="flex items-center gap-2 text-sm text-content">
                 <input type="radio" name="auth-method" value="totp" checked={metodo === 'totp'} onChange={() => setMetodo('totp')} />

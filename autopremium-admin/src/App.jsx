@@ -194,7 +194,6 @@ export default function App() {
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  const [loginMethod, setLoginMethod] = useState('email');
   const [challenge, setChallenge] = useState(null);
   const [otp, setOtp] = useState('');
   const [loginError, setLoginError] = useState(null);
@@ -235,7 +234,7 @@ export default function App() {
 
     try {
       if (!challenge) {
-        const data = await authRequest('login', { email: loginEmail, password: loginPassword, method: loginMethod });
+        const data = await authRequest('login', { email: loginEmail, password: loginPassword });
         if (!data.requiereCodigo || !data.challengeId) throw new Error('No pudo iniciarse la verificación.');
         setChallenge(data);
         setLoginPassword('');
@@ -468,13 +467,6 @@ export default function App() {
             <div>
               <label htmlFor="admin-login-password" className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold block mb-1.5">Contraseña de Seguridad</label>
               <input id="admin-login-password" autoComplete="current-password" required type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="••••••••" className="w-full bg-black border border-zinc-800 focus:border-red-600 rounded-xl p-3 text-sm text-white focus:outline-none transition shadow-inner" />
-            </div>
-            <div>
-              <label htmlFor="admin-login-method">Recibir código por</label>
-              <select id="admin-login-method" value={loginMethod} onChange={e => setLoginMethod(e.target.value)} className="w-full bg-black border border-zinc-800 rounded-xl p-3">
-                <option value="email">Correo electrónico</option>
-                <option value="sms">SMS al teléfono registrado</option>
-              </select>
             </div>
             </>)}
             <button type="submit" disabled={loginLoading} className={`w-full font-black text-xs uppercase tracking-widest py-4 rounded-xl transition duration-300 shadow-[0_0_20px_rgba(220,38,38,0.4)] mt-4 ${loginLoading ? 'bg-red-800 text-red-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-500 text-white'}`}>

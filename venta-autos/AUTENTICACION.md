@@ -2,22 +2,19 @@
 
 ## Flujo
 
-- Iniciar sesión requiere correo y contraseña, además de un código OTP por correo o SMS.
+- Iniciar sesión requiere correo y contraseña, además de un código por correo o de una app autenticadora vinculada.
 - El registro crea una cuenta de cliente sin privilegios administrativos y exige validar el correo con OTP.
-- Las cuentas existentes conservan el acceso por correo; el teléfono se verifica cuando se usa por primera vez el segundo factor SMS.
-- Los OTP tienen seis dígitos, vencen en 10 minutos, permiten cinco intentos y se guardan en PostgreSQL como HMAC, nunca en texto plano.
-- Se permite pedir un nuevo código después de 60 segundos, con un máximo de cinco envíos por cuenta y tipo de desafío cada 15 minutos.
+- Para vincular Google Authenticator o Microsoft Authenticator, abre **Mi cuenta → App autenticadora**, confirma tu contraseña y escanea el QR. Escribe el primer código de seis dígitos para activar la app.
+- Los códigos por correo tienen seis dígitos, vencen en 10 minutos y se guardan en PostgreSQL como HMAC. La app autenticadora genera un código nuevo cada 30 segundos y la clave de vinculación se guarda cifrada.
+- Se puede pedir un código nuevo por correo después de 60 segundos. Cada cuenta puede iniciar hasta cinco desafíos del mismo propósito en 15 minutos.
 - Cinco errores de contraseña o de OTP de acceso en 15 minutos bloquean la cuenta durante 15 minutos.
 - Las sesiones cierran tras 30 minutos de inactividad y tienen una duración máxima de 12 horas. El cierre de sesión revoca el registro del servidor.
 
 ## Preparar Neon y Render
 
-1. Ejecuta una vez el contenido de `db/004_auth_security.sql` en la base Neon que ya usa la aplicación.
-2. En Render, agrega `RESEND_API_KEY` y `AUTH_EMAIL_FROM` para habilitar OTP por correo. El dominio o remitente debe estar autorizado en Resend.
-3. En Render, agrega `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` y `TWILIO_FROM_NUMBER` para habilitar SMS. Usa un número emisor válido de Twilio y conserva las credenciales solo en Render.
-4. Espera el despliegue de Render y comprueba `/api/health`. La clave de cada proveedor nunca debe ir en Vercel, en una variable `VITE_` ni en GitHub.
-
-La ruta SMS requiere un proveedor con capacidad de enviar mensajes y puede generar cargos. En cuentas de prueba de Twilio, el teléfono de destino debe estar verificado en Twilio. Si falta un proveedor, ese método devuelve un error claro y no crea una sesión.
+1. Aplica las migraciones SQL hasta `db/006_auth_totp.sql` en la base Neon de la aplicación.
+2. Configura el proveedor de correo en Render con las variables de `.env.example`. Gmail usa `AUTH_EMAIL_PROVIDER=gmail` y las variables `GMAIL_*`. Resend usa `RESEND_API_KEY` y `AUTH_EMAIL_FROM` con un remitente autorizado.
+3. Mantén `AUTH_SECRET` en Render para firmar sesiones y proteger las claves de las apps autenticadoras. Tras desplegar, comprueba `/api/health`.
 
 ## Límites y protección
 

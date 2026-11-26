@@ -100,7 +100,7 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
     requireValue(config.authSecret.length>=32,503,'Falta configurar AUTH_SECRET en el servidor.');
     const {email,password,method='email'}=req.body;
     requireValue(typeof email==='string' && typeof password==='string' && password.length<=256,400,'Datos de acceso inválidos.');
-    requireValue(['email','sms','totp'].includes(method),400,'Selecciona un método de verificación válido.');
+    requireValue(['email','totp'].includes(method),400,'Selecciona un método de verificación válido.');
     const user=(await pool.query('SELECT * FROM usuarios WHERE lower(email)=lower($1)',[email.trim()])).rows[0];
     if (user && locked(user)) requireValue(false,423,'La cuenta está bloqueada temporalmente. Espera 15 minutos antes de intentarlo de nuevo.');
     const passwordValid = user && await verifyPassword(password,user.password_hash);
@@ -152,18 +152,12 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
         u.auth_fallos,u.auth_ventana,u.auth_bloqueado_hasta
         FROM auth_challenges c JOIN usuarios u ON u.id=c.user_id
         WHERE c.id=$1 FOR UPDATE OF c`,[challengeId])).rows[0];
-      if (!row || row.consumed_at || new Date(row.expires_at).getTime()<=Date.now() || Number(row.attempts)>=AUTH_OTP_MAX_ATTEMPTS)
+      if (!row || !['email','totp'].includes(row.channel) || row.consumed_at || new Date(row.expires_at).getTime()<=Date.now() || Number(row.attempts)>=AUTH_OTP_MAX_ATTEMPTS)
         return { ok:false };
       if (row.purpose==='login' && locked(row)) return { ok:false, locked:true };
-      let matches;
-      if (row.channel === 'sms' && row.sms_verification_sid) {
-        requireValue(authDelivery.checkSmsVerification, 503, 'La verificación por SMS no está disponible.');
-        matches = await authDelivery.checkSmsVerification(row.sms_verification_sid, code);
-      } else if (row.channel === 'totp') {
-        matches = await verifyAuthenticator(db, row.account_id, code, config.authSecret);
-      } else {
-        matches = otpMatches(challengeId,code,row.code_hash,config.authSecret);
-      }
+      const matches = row.channel === 'totp'
+        ? await verifyAuthenticator(db, row.account_id, code, config.authSecret)
+        : otpMatches(challengeId,code,row.code_hash,config.authSecret);
       if (!matches) {
         const attempts=Number(row.attempts)+1;
         await db.query('UPDATE auth_challenges SET attempts=$2::smallint,consumed_at=CASE WHEN $2::smallint >= $3::smallint THEN NOW() ELSE consumed_at END WHERE id=$1',
@@ -175,7 +169,6 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
       await db.query('UPDATE auth_challenges SET consumed_at=NOW() WHERE id=$1',[challengeId]);
       if (row.purpose==='verify_email') await db.query('UPDATE usuarios SET correo_verificado=TRUE WHERE id=$1',[row.account_id]);
       if (row.purpose==='login') {
-        if (row.channel==='sms') await db.query('UPDATE usuarios SET telefono_verificado=TRUE WHERE id=$1',[row.account_id]);
         await db.query('UPDATE usuarios SET auth_fallos=0,auth_ventana=NULL,auth_bloqueado_hasta=NULL WHERE id=$1',[row.account_id]);
       }
       const user=(await db.query('SELECT id,nombre,email,rol FROM usuarios WHERE id=$1',[row.account_id])).rows[0];
@@ -189,13 +182,14 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
   app.post('/api/auth/reenviar-codigo',limitLogin,async (req,res) => {
     const {challengeId}=req.body;
     requireValue(typeof challengeId==='string' && /^[0-9a-f-]{36}$/i.test(challengeId),400,'La solicitud de verificación no es válida.');
-    const row=(await pool.query(`SELECT c.*,u.id AS account_id,u.nombre,u.email,u.telefono,u.correo_verificado,u.auth_bloqueado_hasta
+    const row=(await pool.query(`SELECT c.*,u.id AS account_id,u.email,u.auth_bloqueado_hasta
       FROM auth_challenges c JOIN usuarios u ON u.id=c.user_id WHERE c.id=$1`,[challengeId])).rows[0];
     requireValue(row && !row.consumed_at && new Date(row.expires_at).getTime()>Date.now(),410,'El código venció. Inicia sesión para solicitar uno nuevo.');
     requireValue(row.channel!=='totp',400,'Usa el código actual de tu app autenticadora.');
+    requireValue(row.channel==='email',410,'Inicia sesión para solicitar un código por correo.');
     if (row.purpose==='login' && locked(row)) requireValue(false,423,'La cuenta está bloqueada temporalmente. Espera 15 minutos.');
     requireValue(Date.now()-new Date(row.created_at).getTime()>=60000,429,'Espera un minuto antes de pedir otro código.');
-    const user={id:row.account_id,nombre:row.nombre,email:row.email,telefono:row.telefono};
+    const user={id:row.account_id,email:row.email};
     res.json(await startChallenge(user,row.purpose,row.channel));
   });
   app.get('/api/vehiculos',async (_req,res) => res.json((await pool.query('SELECT * FROM vehiculos ORDER BY precio')).rows));

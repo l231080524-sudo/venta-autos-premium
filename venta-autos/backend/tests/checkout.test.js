@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import { createApp } from '../../server.js';
 import { sessionToken } from '../core.js';
+import { otpDigest } from '../auth.js';
 import { totpCode } from '../totp.js';
 
 // Solo base aislada en loopback/55439. Jamás se utiliza DATABASE_URL ni la base del proyecto.
@@ -62,7 +63,7 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     },
     get: async id => structuredClone(provider.get(id)),
   };
-  const authDelivery = { send: async (channel,destination,code,purpose) => sentCodes.push({channel,destination,code,purpose}) };
+  const authDelivery = { sendEmail: async (destination,code,purpose) => sentCodes.push({channel:'email',destination,code,purpose}) };
   server=createApp({pool,config,mp,authDelivery}).listen(0,'127.0.0.1');
   await new Promise(resolve=>server.once('listening',resolve));
   const base=`http://127.0.0.1:${server.address().port}`;
@@ -185,38 +186,19 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     const registered=await request('/api/auth/verificar',{challengeId:signup.data.challengeId,code:sentCodes.at(-1).code});
     assert.equal(registered.status,200);assert.equal(registered.data.usuario.rol,'cliente');
     assert.equal((await pool.query("SELECT correo_verificado FROM usuarios WHERE lower(email)='cliente@autopremium.com'")).rows[0].correo_verificado,true);
-
-    const smsLogin=await request('/api/auth/login',{email:'cliente@autopremium.com',password:'prueba123',method:'sms'});
-    assert.equal(smsLogin.status,200);assert.equal(smsLogin.data.method,'sms');
-    assert.match(sentCodes.at(-1).destination,/7391$/);
-    const smsVerified=await request('/api/auth/verificar',{challengeId:smsLogin.data.challengeId,code:sentCodes.at(-1).code});
-    assert.equal(smsVerified.status,200);
-    assert.equal((await pool.query("SELECT telefono_verificado FROM usuarios WHERE lower(email)='cliente@autopremium.com'")).rows[0].telefono_verificado,true);
   });
-  await t.test('Verify vincula el SMS al desafío y consume el código después de aprobarlo', async () => {
-    const sid = 'VE' + 'c'.repeat(32);
-    await pool.query(`INSERT INTO usuarios (nombre,email,password_hash,telefono)
-      VALUES ('SMS','verify@example.test','prueba123','+525530467391')`);
-    authDelivery.startSmsVerification = async phone => {
-      assert.equal(phone, '+525530467391');
-      return sid;
-    };
-    authDelivery.checkSmsVerification = async (receivedSid, code) => {
-      assert.equal(receivedSid, sid);
-      return code === '123456';
-    };
-    try {
-      const login = await request('/api/auth/login', { email:'verify@example.test', password:'prueba123', method:'sms' });
-      assert.equal(login.status, 200);
-      const { challengeId } = login.data;
-      assert.equal(login.data.sms_verification_sid, undefined);
-      assert.equal((await request('/api/auth/verificar', { challengeId, code:'999999' })).status, 401);
-      assert.equal((await request('/api/auth/verificar', { challengeId, code:'123456' })).status, 200);
-      assert.equal((await request('/api/auth/verificar', { challengeId, code:'123456' })).status, 401);
-    } finally {
-      delete authDelivery.startSmsVerification;
-      delete authDelivery.checkSmsVerification;
-    }
+  await t.test('rechaza el método retirado y los desafíos antiguos aunque el código coincida', async () => {
+    const login = await request('/api/auth/login', { email:'uno@example.test', password:'legacy123', method:'sms' });
+    assert.equal(login.status, 400);
+    const challengeId = randomUUID();
+    const code = '123456';
+    const hash = otpDigest(challengeId, code, config.authSecret).toString('hex');
+    await pool.query(
+      "INSERT INTO auth_challenges(id,user_id,purpose,channel,code_hash,expires_at) VALUES($1,3,'login','sms',$2,NOW()+INTERVAL '5 minutes')",
+      [challengeId, hash],
+    );
+    assert.equal((await request('/api/auth/verificar', { challengeId, code })).status, 401);
+    assert.equal((await request('/api/auth/reenviar-codigo', { challengeId })).status, 410);
   });
   await t.test('activa Google Authenticator y verifica el acceso sin enviar un código ni permitir reutilizarlo', async subtest => {
     const isolatedServer = createApp({ pool, config, mp, authDelivery }).listen(0,'127.0.0.1');

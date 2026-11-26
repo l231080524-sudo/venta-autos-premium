@@ -2,14 +2,14 @@ import { test, expect } from '@playwright/test';
 
 const account = { id:23,nombre:'Cliente protegido',email:'cliente@example.test',rol:'cliente',token:'session-test-token' };
 
-test('inicia sesión con correo y contraseña, después valida OTP por SMS', async ({ page }) => {
+test('inicia sesión con correo y contraseña, después valida el código de la app autenticadora', async ({ page }) => {
   let loginPayload;
   let verificationPayload;
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.pathname === '/api/auth/login') {
       loginPayload = route.request().postDataJSON();
-      return route.fulfill({ json:{ requiereCodigo:true,method:'sms',destination:'•••• 7391',challengeId:'4f53207d-95d3-4796-a50b-e7b7d63a1e2c',expiresInSeconds:600 } });
+      return route.fulfill({ json:{ requiereCodigo:true,method:'totp',destination:null,challengeId:'4f53207d-95d3-4796-a50b-e7b7d63a1e2c',expiresInSeconds:600 } });
     }
     if (url.pathname === '/api/auth/verificar') {
       verificationPayload = route.request().postDataJSON();
@@ -28,16 +28,18 @@ test('inicia sesión con correo y contraseña, después valida OTP por SMS', asy
   await page.locator('#panel-cuenta').getByRole('button',{name:'Iniciar sesión'}).click();
   await page.locator('#auth-email').fill('cliente@example.test');
   await page.locator('#auth-password').fill('clave-de-prueba');
-  await page.getByLabel('Enviar código por SMS al teléfono de la cuenta').check();
+  await expect(page.getByRole('radio')).toHaveCount(2);
+  await expect(page.getByLabel('Enviar código al correo')).toBeChecked();
+  await page.getByLabel('Usar código de la app autenticadora').check();
   await page.getByRole('button',{name:'Continuar con verificación'}).click();
 
-  await expect(page.getByText('Enviamos un código a •••• 7391.')).toBeVisible();
+  await expect(page.getByText('Abre tu app autenticadora y escribe el código actual de AutoPremium.')).toBeVisible();
   await page.getByLabel('Código de seis dígitos').fill('12a34567');
   await expect(page.getByLabel('Código de seis dígitos')).toHaveValue('123456');
   await page.getByRole('button',{name:'Verificar e iniciar sesión'}).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('usuario_premium') || 'null')?.email)).toBe(account.email);
-  expect(loginPayload).toMatchObject({ email:'cliente@example.test',password:'clave-de-prueba',method:'sms' });
+  expect(loginPayload).toMatchObject({ email:'cliente@example.test',password:'clave-de-prueba',method:'totp' });
   expect(verificationPayload).toMatchObject({ challengeId:'4f53207d-95d3-4796-a50b-e7b7d63a1e2c',code:'123456' });
 });
 

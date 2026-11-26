@@ -7,22 +7,18 @@ export const AUTH_OTP_TTL_MS = 10 * 60 * 1000;
 export const AUTH_OTP_MAX_ATTEMPTS = 5;
 
 export function normalizePhone(value) {
-  requireValue(typeof value === 'string', 400, 'Registra un teléfono celular válido para usar SMS.');
+  requireValue(typeof value === 'string', 400, 'Registra un teléfono celular válido.');
   let digits = value.replace(/\D/g, '');
   if (digits.startsWith('00')) digits = digits.slice(2);
   if (digits.length === 10) digits = `52${digits}`;
   else if (digits.length === 13 && digits.startsWith('521')) digits = `52${digits.slice(-10)}`;
-  requireValue(digits.length >= 8 && digits.length <= 15, 400, 'Registra un teléfono celular válido para usar SMS.');
+  requireValue(digits.length >= 8 && digits.length <= 15, 400, 'Registra un teléfono celular válido.');
   return `+${digits}`;
 }
 
-export function maskDestination(channel, value) {
-  if (channel === 'email') {
-    const [name = '', domain = ''] = value.split('@');
-    return `${name.slice(0, 1)}${'*'.repeat(Math.max(3, Math.min(name.length - 1, 8)))}@${domain}`;
-  }
-  const digits = value.replace(/\D/g, '');
-  return `•••• ${digits.slice(-4)}`;
+export function maskEmail(value) {
+  const [name = '', domain = ''] = value.split('@');
+  return `${name.slice(0, 1)}${'*'.repeat(Math.max(3, Math.min(name.length - 1, 8)))}@${domain}`;
 }
 
 export function otpDigest(challengeId, code, secret) {
@@ -38,28 +34,6 @@ export function otpMatches(challengeId, code, storedHash, secret) {
 }
 
 export function createAuthDelivery({ env = process.env, fetcher = fetch } = {}) {
-  const verifySid = env.TWILIO_VERIFY_SERVICE_SID?.trim();
-  const verificationId = /^VE[a-f0-9]{32}$/i;
-
-  async function callVerify(resource, fields, allowExpired = false) {
-    const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN } = env;
-    requireValue(/^VA[a-f0-9]{32}$/i.test(verifySid || '') && TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN,
-      503, 'Falta configurar Twilio Verify para el envío por SMS.');
-    try {
-      const authorization = Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64');
-      const response = await fetcher(`https://verify.twilio.com/v2/Services/${verifySid}/${resource}`, {
-        method: 'POST', signal: AbortSignal.timeout(5000),
-        headers: { Authorization: `Basic ${authorization}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams(fields),
-      });
-      if (allowExpired && response.status === 404) return null;
-      if (!response.ok) throw new Error('twilio_verify');
-      return await response.json();
-    } catch {
-      throw Object.assign(new Error('Twilio no pudo completar la verificación por SMS. Inténtalo de nuevo.'), { status: 503 });
-    }
-  }
-
   async function sendGmail(to, subject, message) {
     const { GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, GMAIL_FROM } = env;
     requireValue(GMAIL_CLIENT_ID && GMAIL_CLIENT_SECRET && GMAIL_REFRESH_TOKEN && GMAIL_FROM,
@@ -126,55 +100,13 @@ export function createAuthDelivery({ env = process.env, fetcher = fetch } = {}) 
     if (!response.ok) throw Object.assign(new Error('El proveedor de correo no pudo enviar el código.'), { status: 503 });
   }
 
-  async function sendSms(to, code) {
-    const accountSid = env.TWILIO_ACCOUNT_SID;
-    const authToken = env.TWILIO_AUTH_TOKEN;
-    const from = env.TWILIO_FROM_NUMBER;
-    if (!accountSid || !authToken || !from) {
-      throw Object.assign(new Error('El envío de códigos por SMS todavía no está configurado.'), { status: 503 });
-    }
-    let response;
-    try {
-      const body = new URLSearchParams({ To: to, From: from, Body: `Tu código de AutoPremium es ${code}. Vence en 10 minutos.` });
-      response = await fetcher(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Messages.json`, {
-        method: 'POST', signal: AbortSignal.timeout(10000),
-        headers: {
-          Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body,
-      });
-    } catch {
-      throw Object.assign(new Error('No se pudo enviar el SMS de verificación. Inténtalo de nuevo.'), { status: 503 });
-    }
-    if (!response.ok) throw Object.assign(new Error('El proveedor de SMS no pudo enviar el código.'), { status: 503 });
-  }
-
-  return {
-    send: (channel, destination, code, purpose) => channel === 'email'
-      ? sendEmail(destination, code, purpose)
-      : sendSms(destination, code),
-    ...(verifySid && {
-      async startSmsVerification(to) {
-        const result = await callVerify('Verifications', { To: to, Channel: 'sms' });
-        requireValue(result?.status === 'pending' && verificationId.test(result.sid) && result.to === to,
-          503, 'Twilio no pudo iniciar la verificación por SMS.');
-        return result.sid;
-      },
-      async checkSmsVerification(sid, code) {
-        requireValue(verificationId.test(sid), 503, 'La verificación por SMS no está disponible.');
-        const result = await callVerify('VerificationCheck', { VerificationSid: sid, Code: code }, true);
-        return result?.status === 'approved' && result.sid === sid;
-      },
-    }),
-  };
+  return { sendEmail };
 }
 
 export async function createOtpChallenge({ pool, delivery, user, channel, purpose, secret, now = Date.now() }) {
-  requireValue(['email', 'sms'].includes(channel) || (channel === 'totp' && purpose === 'login'),
+  requireValue(channel === 'email' || (channel === 'totp' && purpose === 'login'),
     400, 'Selecciona un método de verificación válido.');
   requireValue(['verify_email', 'login'].includes(purpose), 400, 'No se pudo iniciar la verificación.');
-  const destination = channel === 'sms' ? normalizePhone(user.telefono || '') : user.email;
   const id = randomUUID();
   const code = String(randomInt(100000, 1000000));
   await transaction(pool, async db => {
@@ -200,15 +132,7 @@ export async function createOtpChallenge({ pool, delivery, user, channel, purpos
     );
   });
   try {
-    if (channel === 'sms' && delivery.startSmsVerification) {
-      const sid = await delivery.startSmsVerification(destination);
-      const attached = await pool.query(
-        'UPDATE auth_challenges SET sms_verification_sid=$2 WHERE id=$1 AND consumed_at IS NULL', [id, sid],
-      );
-      requireValue(attached.rowCount === 1, 409, 'Ya se solicitó otro código. Usa el intento más reciente.');
-    } else if (channel !== 'totp') {
-      await delivery.send(channel, destination, code, purpose);
-    }
+    if (channel === 'email') await delivery.sendEmail(user.email, code, purpose);
   } catch (error) {
     await pool.query('UPDATE auth_challenges SET consumed_at=NOW() WHERE id=$1', [id]);
     throw error;
@@ -216,7 +140,7 @@ export async function createOtpChallenge({ pool, delivery, user, channel, purpos
   return {
     challengeId: id,
     method: channel,
-    destination: channel === 'totp' ? null : maskDestination(channel, destination),
+    destination: channel === 'totp' ? null : maskEmail(user.email),
     expiresInSeconds: AUTH_OTP_TTL_MS / 1000,
   };
 }
