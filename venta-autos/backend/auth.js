@@ -38,7 +38,50 @@ export function otpMatches(challengeId, code, storedHash, secret) {
 }
 
 export function createAuthDelivery({ env = process.env, fetcher = fetch } = {}) {
+  async function sendGmail(to, subject, message) {
+    const { GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, GMAIL_FROM } = env;
+    requireValue(GMAIL_CLIENT_ID && GMAIL_CLIENT_SECRET && GMAIL_REFRESH_TOKEN && GMAIL_FROM,
+      503, 'Falta configurar el envío de códigos con Gmail.');
+    const mailbox = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+$/i;
+    requireValue(mailbox.test(to) && !/[\r\n]/.test(to), 400, 'El correo de la cuenta no es válido.');
+    requireValue(mailbox.test(GMAIL_FROM) && !/[\r\n]/.test(GMAIL_FROM),
+      503, 'El remitente de Gmail no está configurado correctamente.');
+    const raw = [
+      `From: AutoPremium <${GMAIL_FROM}>`,
+      `To: ${to}`,
+      `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
+      'MIME-Version: 1.0',
+      'Content-Type: text/plain; charset=UTF-8',
+      'Content-Transfer-Encoding: base64',
+      '',
+      Buffer.from(message).toString('base64'),
+    ].join('\r\n');
+    try {
+      const token = await fetcher('https://oauth2.googleapis.com/token', {
+        method: 'POST', signal: AbortSignal.timeout(5000),
+        body: new URLSearchParams({
+          client_id: GMAIL_CLIENT_ID, client_secret: GMAIL_CLIENT_SECRET,
+          refresh_token: GMAIL_REFRESH_TOKEN, grant_type: 'refresh_token',
+        }),
+      });
+      if (!token.ok) throw new Error('gmail_oauth');
+      const { access_token } = await token.json();
+      if (typeof access_token !== 'string' || !access_token) throw new Error('gmail_oauth');
+      const response = await fetcher('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+        method: 'POST', signal: AbortSignal.timeout(5000),
+        headers: { Authorization: `Bearer ${access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raw: Buffer.from(raw).toString('base64url') }),
+      });
+      if (!response.ok) throw new Error('gmail_send');
+    } catch {
+      throw Object.assign(new Error('Gmail no pudo enviar el código. Inténtalo de nuevo.'), { status: 503 });
+    }
+  }
+
   async function sendEmail(to, code, purpose) {
+    const subject = purpose === 'verify_email' ? 'Verifica tu cuenta de AutoPremium' : 'Código de acceso a AutoPremium';
+    const message = `Tu código de verificación es ${code}. Vence en 10 minutos. Si no solicitaste este código, ignora este mensaje.`;
+    if (env.AUTH_EMAIL_PROVIDER === 'gmail') return sendGmail(to, subject, message);
     if (!env.RESEND_API_KEY || !env.AUTH_EMAIL_FROM) {
       throw Object.assign(new Error('El envío de códigos por correo todavía no está configurado.'), { status: 503 });
     }
@@ -50,8 +93,8 @@ export function createAuthDelivery({ env = process.env, fetcher = fetch } = {}) 
         body: JSON.stringify({
           from: env.AUTH_EMAIL_FROM,
           to: [to],
-          subject: purpose === 'verify_email' ? 'Verifica tu cuenta de AutoPremium' : 'Código de acceso a AutoPremium',
-          text: `Tu código de verificación es ${code}. Vence en 10 minutos. Si no solicitaste este código, ignora este mensaje.`,
+          subject,
+          text: message,
           html: `<p>Tu código de verificación es:</p><p style="font-size:28px;font-weight:700;letter-spacing:6px">${code}</p><p>Vence en 10 minutos. Si no solicitaste este código, ignora este mensaje.</p>`,
         }),
       });

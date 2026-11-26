@@ -34,6 +34,32 @@ test('el proveedor de correo usa HTTPS y conserva el código solo en el contenid
   assert.equal(body.html.includes('onerror='), false);
 });
 
+test('Gmail renueva la autorización y envía un OTP por HTTPS a otro dominio', async () => {
+  const requests = [];
+  const delivery = createAuthDelivery({
+    env: {
+      AUTH_EMAIL_PROVIDER: 'gmail', GMAIL_CLIENT_ID: 'demo-client', GMAIL_CLIENT_SECRET: 'demo-secret',
+      GMAIL_REFRESH_TOKEN: 'demo-refresh', GMAIL_FROM: 'autopremium@example.test',
+    },
+    fetcher: async (url, options) => {
+      requests.push({ url, options });
+      return Response.json(url.includes('oauth2') ? { access_token: 'demo-access' } : { id: 'message' });
+    },
+  });
+  await delivery.send('email', 'usuario@otro-dominio.test', '123456', 'verify_email');
+  assert.equal(requests[0].url, 'https://oauth2.googleapis.com/token');
+  assert.equal(requests[0].options.body.get('grant_type'), 'refresh_token');
+  assert.equal(requests[0].options.body.get('refresh_token'), 'demo-refresh');
+  assert.equal(requests[1].url, 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send');
+  assert.equal(requests[1].options.headers.Authorization, 'Bearer demo-access');
+  const mime = Buffer.from(JSON.parse(requests[1].options.body).raw, 'base64url').toString();
+  assert.match(mime, /To: usuario@otro-dominio\.test\r\n/);
+  const body = Buffer.from(mime.split('\r\n\r\n')[1], 'base64').toString();
+  assert.match(body, /123456/);
+  await assert.rejects(delivery.send('email', 'usuario@example.test\r\nBcc: otro@example.test', '123456', 'login'), /no es válido/);
+  assert.equal(requests.length, 2);
+});
+
 test('el proveedor SMS envía el destino como E.164 y oculta los errores del proveedor', async () => {
   const requests = [];
   const delivery = createAuthDelivery({
