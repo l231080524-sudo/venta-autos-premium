@@ -151,15 +151,22 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
         WHERE c.id=$1 FOR UPDATE OF c,u`,[challengeId])).rows[0];
       if (!row || row.consumed_at || new Date(row.expires_at).getTime()<=Date.now() || Number(row.attempts)>=AUTH_OTP_MAX_ATTEMPTS)
         return { ok:false };
-      if (!otpMatches(challengeId,code,row.code_hash,config.authSecret)) {
+      if (row.purpose==='login' && locked(row)) return { ok:false, locked:true };
+      let matches;
+      if (row.channel === 'sms' && row.sms_verification_sid) {
+        requireValue(authDelivery.checkSmsVerification, 503, 'La verificación por SMS no está disponible.');
+        matches = await authDelivery.checkSmsVerification(row.sms_verification_sid, code);
+      } else {
+        matches = otpMatches(challengeId,code,row.code_hash,config.authSecret);
+      }
+      if (!matches) {
         const attempts=Number(row.attempts)+1;
-        await db.query('UPDATE auth_challenges SET attempts=$2,consumed_at=CASE WHEN $2 >= $3 THEN NOW() ELSE consumed_at END WHERE id=$1',
+        await db.query('UPDATE auth_challenges SET attempts=$2::smallint,consumed_at=CASE WHEN $2::smallint >= $3::smallint THEN NOW() ELSE consumed_at END WHERE id=$1',
           [challengeId,attempts,AUTH_OTP_MAX_ATTEMPTS]);
         const account={id:row.account_id,auth_fallos:row.auth_fallos,auth_ventana:row.auth_ventana,auth_bloqueado_hasta:row.auth_bloqueado_hasta};
         const isLocked=row.purpose==='login' && await recordAuthFailure(db,account);
         return { ok:false, locked:isLocked };
       }
-      if (row.purpose==='login' && locked(row)) return { ok:false, locked:true };
       await db.query('UPDATE auth_challenges SET consumed_at=NOW() WHERE id=$1',[challengeId]);
       if (row.purpose==='verify_email') await db.query('UPDATE usuarios SET correo_verificado=TRUE WHERE id=$1',[row.account_id]);
       if (row.purpose==='login') {

@@ -28,7 +28,7 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     CREATE TABLE usuarios(id SERIAL PRIMARY KEY,nombre VARCHAR(100),email VARCHAR(150) UNIQUE,password_hash VARCHAR(255),rol user_role DEFAULT 'cliente',telefono VARCHAR(20));
     CREATE TABLE vehiculos(id SERIAL PRIMARY KEY,marca VARCHAR(50),modelo VARCHAR(100),anio INT,precio NUMERIC(12,2),categoria car_category,imagen TEXT,especificaciones JSONB,descripcion TEXT,stock INT);
     CREATE TABLE apartados(id SERIAL PRIMARY KEY,usuario_id INT REFERENCES usuarios(id),vehiculo_id INT REFERENCES vehiculos(id),status order_status DEFAULT 'apartado',UNIQUE(usuario_id,vehiculo_id,status));`);
-  for (let pass = 0; pass < 2; pass++) for (const file of ['001_pagos.sql','002_checkout_orders.sql','003_produccion.sql','004_auth_security.sql'])
+  for (let pass = 0; pass < 2; pass++) for (const file of ['001_pagos.sql','002_checkout_orders.sql','003_produccion.sql','004_auth_security.sql','005_twilio_verify.sql'])
     await pool.query(await readFile(new URL(`../../db/${file}`,import.meta.url),'utf8'));
   await pool.query(`INSERT INTO usuarios(nombre,email,password_hash,rol) VALUES
     ('Uno','uno@example.test','legacy123','cliente'),('Dos','dos@example.test','otra','cliente'),('Admin','admin@example.test','admin123','admin');
@@ -61,7 +61,8 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     },
     get: async id => structuredClone(provider.get(id)),
   };
-  server=createApp({pool,config,mp,authDelivery:{send:async(channel,destination,code,purpose)=>sentCodes.push({channel,destination,code,purpose})}}).listen(0,'127.0.0.1');
+  const authDelivery = { send: async (channel,destination,code,purpose) => sentCodes.push({channel,destination,code,purpose}) };
+  server=createApp({pool,config,mp,authDelivery}).listen(0,'127.0.0.1');
   await new Promise(resolve=>server.once('listening',resolve));
   const base=`http://127.0.0.1:${server.address().port}`;
   async function request(path,body,user=1,method='POST',headers={}) {
@@ -190,6 +191,31 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     const smsVerified=await request('/api/auth/verificar',{challengeId:smsLogin.data.challengeId,code:sentCodes.at(-1).code});
     assert.equal(smsVerified.status,200);
     assert.equal((await pool.query("SELECT telefono_verificado FROM usuarios WHERE lower(email)='cliente@autopremium.com'")).rows[0].telefono_verificado,true);
+  });
+  await t.test('Verify vincula el SMS al desafío y consume el código después de aprobarlo', async () => {
+    const sid = 'VE' + 'c'.repeat(32);
+    await pool.query(`INSERT INTO usuarios (nombre,email,password_hash,telefono)
+      VALUES ('SMS','verify@example.test','prueba123','+525530467391')`);
+    authDelivery.startSmsVerification = async phone => {
+      assert.equal(phone, '+525530467391');
+      return sid;
+    };
+    authDelivery.checkSmsVerification = async (receivedSid, code) => {
+      assert.equal(receivedSid, sid);
+      return code === '123456';
+    };
+    try {
+      const login = await request('/api/auth/login', { email:'verify@example.test', password:'prueba123', method:'sms' });
+      assert.equal(login.status, 200);
+      const { challengeId } = login.data;
+      assert.equal(login.data.sms_verification_sid, undefined);
+      assert.equal((await request('/api/auth/verificar', { challengeId, code:'999999' })).status, 401);
+      assert.equal((await request('/api/auth/verificar', { challengeId, code:'123456' })).status, 200);
+      assert.equal((await request('/api/auth/verificar', { challengeId, code:'123456' })).status, 401);
+    } finally {
+      delete authDelivery.startSmsVerification;
+      delete authDelivery.checkSmsVerification;
+    }
   });
   await t.test('bloquea la cuenta después de cinco contraseñas incorrectas',async()=> {
     for(let attempt=0;attempt<4;attempt++) assert.equal((await request('/api/auth/login',{email:'dos@example.test',password:'incorrecta'})).status,401);

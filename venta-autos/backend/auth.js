@@ -38,6 +38,28 @@ export function otpMatches(challengeId, code, storedHash, secret) {
 }
 
 export function createAuthDelivery({ env = process.env, fetcher = fetch } = {}) {
+  const verifySid = env.TWILIO_VERIFY_SERVICE_SID?.trim();
+  const verificationId = /^VE[a-f0-9]{32}$/i;
+
+  async function callVerify(resource, fields, allowExpired = false) {
+    const { TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN } = env;
+    requireValue(/^VA[a-f0-9]{32}$/i.test(verifySid || '') && TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN,
+      503, 'Falta configurar Twilio Verify para el envío por SMS.');
+    try {
+      const authorization = Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64');
+      const response = await fetcher(`https://verify.twilio.com/v2/Services/${verifySid}/${resource}`, {
+        method: 'POST', signal: AbortSignal.timeout(5000),
+        headers: { Authorization: `Basic ${authorization}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(fields),
+      });
+      if (allowExpired && response.status === 404) return null;
+      if (!response.ok) throw new Error('twilio_verify');
+      return await response.json();
+    } catch {
+      throw Object.assign(new Error('Twilio no pudo completar la verificación por SMS. Inténtalo de nuevo.'), { status: 503 });
+    }
+  }
+
   async function sendGmail(to, subject, message) {
     const { GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN, GMAIL_FROM } = env;
     requireValue(GMAIL_CLIENT_ID && GMAIL_CLIENT_SECRET && GMAIL_REFRESH_TOKEN && GMAIL_FROM,
@@ -132,6 +154,19 @@ export function createAuthDelivery({ env = process.env, fetcher = fetch } = {}) 
     send: (channel, destination, code, purpose) => channel === 'email'
       ? sendEmail(destination, code, purpose)
       : sendSms(destination, code),
+    ...(verifySid && {
+      async startSmsVerification(to) {
+        const result = await callVerify('Verifications', { To: to, Channel: 'sms' });
+        requireValue(result?.status === 'pending' && verificationId.test(result.sid) && result.to === to,
+          503, 'Twilio no pudo iniciar la verificación por SMS.');
+        return result.sid;
+      },
+      async checkSmsVerification(sid, code) {
+        requireValue(verificationId.test(sid), 503, 'La verificación por SMS no está disponible.');
+        const result = await callVerify('VerificationCheck', { VerificationSid: sid, Code: code }, true);
+        return result?.status === 'approved' && result.sid === sid;
+      },
+    }),
   };
 }
 
@@ -160,7 +195,15 @@ export async function createOtpChallenge({ pool, delivery, user, channel, purpos
     );
   });
   try {
-    await delivery.send(channel, destination, code, purpose);
+    if (channel === 'sms' && delivery.startSmsVerification) {
+      const sid = await delivery.startSmsVerification(destination);
+      const attached = await pool.query(
+        'UPDATE auth_challenges SET sms_verification_sid=$2 WHERE id=$1 AND consumed_at IS NULL', [id, sid],
+      );
+      requireValue(attached.rowCount === 1, 409, 'Ya se solicitó otro código. Usa el intento más reciente.');
+    } else {
+      await delivery.send(channel, destination, code, purpose);
+    }
   } catch (error) {
     await pool.query('UPDATE auth_challenges SET consumed_at=NOW() WHERE id=$1', [id]);
     throw error;

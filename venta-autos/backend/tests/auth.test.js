@@ -79,3 +79,30 @@ test('el proveedor SMS envía el destino como E.164 y oculta los errores del pro
   });
   await assert.rejects(failed.send('email', 'cliente@example.test', '000000', 'login'), /proveedor de correo/);
 });
+
+test('Verify comprueba la solicitud SMS exacta y solo acepta la aprobación correspondiente', async () => {
+  const service = 'VA' + 'a'.repeat(32);
+  const verification = 'VE' + 'b'.repeat(32);
+  const phone = '+525530467391';
+  const requests = [];
+  let reply = { sid: verification, to: phone, status: 'pending' };
+  const delivery = createAuthDelivery({
+    env: { TWILIO_ACCOUNT_SID: 'AC-test', TWILIO_AUTH_TOKEN: 'test-token', TWILIO_VERIFY_SERVICE_SID: service },
+    fetcher: async (url, options) => {
+      requests.push({ url, ...options });
+      return reply ? Response.json(reply) : new Response(null, { status: 404 });
+    },
+  });
+  assert.equal(await delivery.startSmsVerification(phone), verification);
+  assert.equal(requests[0].url, `https://verify.twilio.com/v2/Services/${service}/Verifications`);
+  assert.deepEqual(Object.fromEntries(requests[0].body), { To: phone, Channel: 'sms' });
+  assert.equal(await delivery.checkSmsVerification(verification, '123456'), false);
+  assert.match(requests[1].url, /\/VerificationCheck$/);
+  assert.deepEqual(Object.fromEntries(requests[1].body), { VerificationSid: verification, Code: '123456' });
+  reply = { sid: 'VE' + 'c'.repeat(32), status: 'approved' };
+  assert.equal(await delivery.checkSmsVerification(verification, '123456'), false);
+  reply = { sid: verification, status: 'approved' };
+  assert.equal(await delivery.checkSmsVerification(verification, '123456'), true);
+  reply = null;
+  assert.equal(await delivery.checkSmsVerification(verification, '123456'), false);
+});
