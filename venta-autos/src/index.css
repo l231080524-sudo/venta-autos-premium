@@ -237,6 +237,7 @@ dialog[aria-label="Accesibilidad"] .dialog-heading { position: sticky; top: 0; z
 
 .campo-contrasena { position: relative; }
 .campo-contrasena > input { padding-inline-end: 3.25rem; }
+.campo-contrasena > input::-ms-reveal { display: none; }
 .ojo-contrasena {
   position: absolute;
   inset-inline-end: .25rem;
