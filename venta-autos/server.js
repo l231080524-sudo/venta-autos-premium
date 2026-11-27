@@ -11,6 +11,7 @@ import { cents, requireValue, transaction, hashPassword, verifyPassword, session
 import { AUTH_OTP_MAX_ATTEMPTS, AUTH_SESSION_IDLE_MS, AUTH_SESSION_MAX_MS, createAuthDelivery, createOtpChallenge, normalizePhone, otpMatches } from './backend/auth.js';
 import { registerTotpRoutes, verifyAuthenticator } from './backend/totp.js';
 import { crearCaptcha } from './backend/captcha.js';
+import { crearCaptchaTexto } from './backend/captchaTexto.js';
 
 const AUTH_FAILURE_LIMIT = 5;
 const AUTH_FAILURE_WINDOW_MS = 15 * 60 * 1000;
@@ -49,7 +50,7 @@ async function makeSession(pool, user, secret, now = Date.now()) {
 }
 
 dotenv.config();
-export function createApp({ pool, config = readConfig(), mp = createMercadoPago(config), authDelivery = createAuthDelivery() }) {
+export function createApp({ pool, config = readConfig(), mp = createMercadoPago(config), authDelivery = createAuthDelivery(), captchaTexto = crearCaptchaTexto() }) {
   const app = express();
   const captcha = crearCaptcha();
   app.disable('x-powered-by');
@@ -103,12 +104,17 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
     res.json({ ok:true });
   });
   app.get('/api/auth/captcha', limitCaptcha, (_req, res) => res.json(captcha.emitir()));
+  app.get('/api/auth/captcha/texto', limitCaptcha, (_req, res) => res.json(captchaTexto.emitir()));
+  app.get('/api/auth/captcha/texto/:id/audio', limitCaptcha, (req, res) => {
+    res.type('audio/wav').send(captchaTexto.audio(req.params.id));
+  });
   app.post('/api/auth/login',limitLogin,async (req,res) => {
     requireValue(config.authSecret.length>=32,503,'Falta configurar AUTH_SECRET en el servidor.');
     const {email,password,method='email'}=req.body;
     requireValue(typeof email==='string' && typeof password==='string' && password.length<=256,400,'Datos de acceso inválidos.');
     requireValue(['email','totp'].includes(method),400,'Selecciona un método de verificación válido.');
-    captcha.validar(req.body.captcha);
+    if (typeof req.body.captcha?.respuesta === 'string') captchaTexto.validar(req.body.captcha);
+    else captcha.validar(req.body.captcha);
     const user=(await pool.query('SELECT * FROM usuarios WHERE lower(email)=lower($1)',[email.trim()])).rows[0];
     if (user && locked(user)) requireValue(false,423,'La cuenta está bloqueada temporalmente. Espera 15 minutos antes de intentarlo de nuevo.');
     const passwordValid = user && await verifyPassword(password,user.password_hash);
