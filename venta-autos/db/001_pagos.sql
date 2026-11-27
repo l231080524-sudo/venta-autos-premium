@@ -1,6 +1,3 @@
--- NEON: ejecutar primero en una rama de pruebas, conectado a la BD que ya contiene
--- usuarios, vehiculos y apartados. LOCAL: puede ejecutarse aunque ya creaste estas tablas.
--- No contiene DROP ni modifica los precios del catálogo.
 BEGIN;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='estado_orden') THEN

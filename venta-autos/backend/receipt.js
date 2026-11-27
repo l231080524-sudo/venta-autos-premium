@@ -6,8 +6,6 @@ const date = value => new Intl.DateTimeFormat('es-MX', {
   dateStyle: 'long', timeStyle: 'medium', timeZone: 'America/Mexico_City',
 }).format(new Date(value));
 
-// Recibe exclusivamente columnas seleccionadas del servidor. Nunca tokens ni respuesta cruda de MP.
-// No requiere claves adicionales: identidad, importes y vehículos proceden del histórico en PostgreSQL.
 export async function createReceipt({ order, payment, items }, issuedAt = new Date()) {
   const real = payment.ambiente === 'produccion';
   const doc = new PDFDocument({ size: 'A4', margin: 48, bufferPages: true,
@@ -28,9 +26,6 @@ export async function createReceipt({ order, payment, items }, issuedAt = new Da
     if (y + height > doc.page.height - 76) { doc.addPage(); y = 48; }
   }
   function text(value, { size = 10.5, bold = false, color = '#15334D', tag = 'P', gap = 6 } = {}) {
-    // El contenido sigue el mismo orden visual y de lectura para lectores de pantalla.
-    // PDF text can retain whitespace, but not the other ASCII control codes.
-    // eslint-disable-next-line no-control-regex
     const content = String(value ?? 'No registrado').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
     doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(size);
     const height = doc.heightOfString(content, { width, lineGap: 2 });
@@ -84,7 +79,6 @@ export async function createReceipt({ order, payment, items }, issuedAt = new Da
   for (let i = pages.start; i < pages.start + pages.count; i++) {
     doc.switchToPage(i);
     const bottom = doc.page.margins.bottom;
-    // El pie está fuera del área principal: evitar que PDFKit cree páginas extra al dibujarlo.
     doc.page.margins.bottom = 0;
     doc.markContent('Artifact');
     doc.font('Helvetica').fontSize(9).fillColor('#15334D')

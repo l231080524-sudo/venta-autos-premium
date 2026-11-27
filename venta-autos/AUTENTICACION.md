@@ -8,7 +8,8 @@
 - Los códigos por correo tienen seis dígitos, vencen en 10 minutos y se guardan en PostgreSQL como HMAC. La app autenticadora genera un código nuevo cada 30 segundos y la clave de vinculación se guarda cifrada.
 - Se puede pedir un código nuevo por correo después de 60 segundos. Cada cuenta puede iniciar hasta cinco desafíos del mismo propósito en 15 minutos.
 - Cinco errores de contraseña o de OTP de acceso en 15 minutos bloquean la cuenta durante 15 minutos.
-- Las sesiones cierran tras 30 minutos de inactividad y tienen una duración máxima de 12 horas. El cierre de sesión revoca el registro del servidor.
+- Las sesiones cierran tras un minuto de inactividad y tienen una duración máxima de 12 horas. El cierre de sesión revoca el registro del servidor.
+- El inicio de sesión incluye un CAPTCHA de prueba de trabajo. El reto caduca a los tres minutos y se consume en cada intento. El registro y la validación del código de un solo uso mantienen su flujo.
 
 ## Preparar Neon y Render
 

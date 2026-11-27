@@ -1,5 +1,3 @@
--- Ejecutar una sola vez en Neon antes del siguiente despliegue del backend.
--- Los usuarios existentes conservan acceso por correo; cuentas nuevas verifican su correo.
 BEGIN;
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS correo_verificado BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefono_verificado BOOLEAN NOT NULL DEFAULT FALSE;

@@ -9,8 +9,6 @@ export const requireValue = (condition, status, message) => {
   if (!condition) throw new HttpError(status, message);
 };
 
-// El Brick mexicano puede omitir identification o enviar ambos campos vacíos.
-// No inventar un CURP: incluir el documento solo cuando se haya proporcionado completo.
 export function buyerIdentification(value) {
   if (value == null) return undefined;
   requireValue(typeof value === 'object' && !Array.isArray(value), 400, 'Documento del comprador inválido.');
@@ -22,7 +20,6 @@ export function buyerIdentification(value) {
   return { type, number };
 }
 
-// Dinero en centavos: evita redondeos de punto flotante al sumar importes.
 export function cents(value) {
   const text = String(value);
   requireValue(/^\d+(\.\d{1,2})?$/.test(text), 400, 'Importe inválido.');
@@ -33,8 +30,6 @@ export function cents(value) {
 }
 export const money = value => (value / 100).toFixed(2);
 
-// Token temporal cifrado para repetir EXACTAMENTE una solicitud tras perder la respuesta.
-// AUTH_SECRET debe conservarse entre reinicios. El payload se elimina al obtener el ID de MP.
 export function sealRequest(body, secret) {
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', createHash('sha256').update(secret).digest(), iv);
@@ -64,7 +59,6 @@ export async function hashPassword(password) {
 }
 export async function verifyPassword(password, stored) {
   if (!stored.startsWith('scrypt:')) {
-    // Compatibilidad temporal con usuarios antiguos: se migra su contraseña al iniciar sesión.
     const a = Buffer.from(password), b = Buffer.from(stored);
     return a.length === b.length && timingSafeEqual(a, b);
   }
@@ -99,7 +93,6 @@ export function sessionUser(token, secret, now = Date.now()) {
 }
 
 export function webhookValidation({ signature, requestId, dataId, secret }) {
-  // Solo devuelve motivos de diagnóstico. Nunca devuelve la clave, la firma ni los headers.
   if (!secret) return { valid: false, reason: 'secreto_ausente' };
   if (typeof dataId !== 'string' || !dataId) return { valid: false, reason: 'data_id_url_ausente' };
   if (typeof signature !== 'string' || !signature) return { valid: false, reason: 'x_signature_ausente' };
@@ -110,9 +103,6 @@ export function webhookValidation({ signature, requestId, dataId, secret }) {
   const fields = Object.fromEntries(pairs);
   if (!/^\d+$/.test(fields.ts || '') || !/^[a-f0-9]{64}$/i.test(fields.v1 || ''))
     return { valid: false, reason: 'x_signature_formato_invalido' };
-  // El SDK oficial actual conserva las mayúsculas del data.id de la URL.
-  // También verificamos la forma en minúsculas usada por integraciones anteriores.
-  // Ambas formas EXIGEN un HMAC válido con la clave privada; nunca aceptar solo el cuerpo.
   const ids = [...new Set([dataId.trim(), dataId.trim().toLowerCase()])];
   const received = Buffer.from(fields.v1, 'hex');
   const valid = ids.some(id => {
@@ -140,14 +130,12 @@ export function paymentState(remote) {
 export function validateRemote(remote, order, payment, config) {
   requireValue(remote.id === payment.mp_order_id && remote.external_reference === order.referencia,
     502, 'La referencia de Mercado Pago no coincide.');
-  // Orders expresa el país; no todas sus respuestas incluyen currency.
   requireValue(['MEX','MX'].includes(remote.country_code) && (!remote.currency || remote.currency === order.moneda) && cents(remote.total_amount) === cents(order.importe_a_cobrar),
     502, 'El importe o moneda de Mercado Pago no coincide.');
   requireValue(String(remote.user_id) === config.sellerId, 502, 'El vendedor de Mercado Pago no coincide.');
   requireValue(String(remote.integration_data?.application_id) === config.applicationId, 502, 'La aplicación de Mercado Pago no coincide.');
   if (payment.ambiente === 'prueba') requireValue(remote.live_mode !== true,
     502, 'Se esperaba una orden de prueba. Revisa las credenciales.');
-  // Orders puede omitir live_mode en GET: el vendedor se comprueba también con /users/me.
   if (payment.ambiente === 'produccion') requireValue(remote.live_mode !== false && !/^ORDTST/i.test(remote.id),
     502, 'Una orden Sandbox no puede confirmar un cobro real.');
   if (paymentState(remote) === 'confirmado') requireValue(cents(remote.total_paid_amount) === cents(payment.importe),

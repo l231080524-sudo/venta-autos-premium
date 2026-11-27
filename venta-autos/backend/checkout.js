@@ -18,14 +18,12 @@ export function createCheckout({ pool, config, mp, authenticate }) {
     return rows[0];
   }
 
-  // Única función que confirma un pago, tanto desde webhook como desde consulta autenticada.
-  // Bloquea la orden antes de consultar a MP: dos notificaciones concurrentes no se pisan.
   async function syncOrder(reference, userId) {
     return transaction(pool, async db => {
       const order = await findOrder(db, reference, userId, true);
       const payment = (await db.query('SELECT * FROM pagos WHERE orden_id = $1 ORDER BY id DESC LIMIT 1 FOR UPDATE', [order.id])).rows[0];
       if (!payment?.mp_order_id) return;
-      if (payment.ambiente !== config.environment) return; // Historial del ambiente anterior, sin usar sus credenciales.
+      if (payment.ambiente !== config.environment) return;
       if (payment.ambiente === 'produccion') await mp.assertSeller();
       const remote = await mp.get(payment.mp_order_id);
       validateRemote(remote, order, payment, config);
@@ -33,7 +31,6 @@ export function createCheckout({ pool, config, mp, authenticate }) {
       requireValue(!Number.isNaN(updated.getTime()), 502, 'Fecha de Mercado Pago inválida.');
       if (payment.actualizado_mp_en && updated < new Date(payment.actualizado_mp_en)) return;
       const state = paymentState(remote);
-      // No guardamos tokens de tarjeta ni respuestas completas del proveedor.
       const transactions = (remote.transactions?.payments || []).map(p => ({
         id: p.id, estado: p.status, detalle: p.status_detail, importe: p.amount,
         metodo: p.payment_method?.id, tipo: p.payment_method?.type,
@@ -53,7 +50,6 @@ export function createCheckout({ pool, config, mp, authenticate }) {
         await db.query("UPDATE ordenes SET estado='pago_confirmado', pago_confirmado_en=$2, actualizado_en=NOW() WHERE id=$1", [order.id, updated]);
         await db.query(`DELETE FROM apartados WHERE usuario_id=$2 AND id IN
           (SELECT apartado_id FROM orden_detalles WHERE orden_id=$1)`, [order.id, userId]);
-        // Esta demostración cobra en producción, pero no entrega vehículos ni descuenta inventario.
       }
     });
   }
@@ -84,7 +80,6 @@ export function createCheckout({ pool, config, mp, authenticate }) {
   async function submitPayment(reference, userId, form, channel = 'tarjeta') {
     assertCheckoutConfig(config);
     await mp.assertSeller();
-    // Consulta un intento existente antes de decidir si puede crearse otro.
     await syncOrder(reference, userId);
     await transaction(pool, async db => {
       const order = await findOrder(db, reference, userId, true);
@@ -93,7 +88,6 @@ export function createCheckout({ pool, config, mp, authenticate }) {
       requireValue(payment.ambiente === config.environment, 409, 'Esta orden pertenece a otro ambiente. Crea una nueva desde el carrito.');
       if (channel==='tarjeta' && form?.token && payment.metodo_pago==='checkout_pro' && payment.mp_order_id
         && !['rechazado','cancelado'].includes(paymentState({status:payment.estado_proveedor}))) {
-        // Cambiar a tarjeta SOLO tras envío explícito de un formulario válido y autorización.
         requireValue(typeof form.token==='string' && /^[a-zA-Z0-9_-]{10,256}$/.test(form.token)
           && typeof form.payment_method_id==='string' && /^[a-zA-Z0-9_-]{1,50}$/.test(form.payment_method_id)
           && ['credit_card','debit_card'].includes(form.payment_type_id) && form.installments===1,400,'Revisa los datos de la tarjeta.');
@@ -122,7 +116,7 @@ export function createCheckout({ pool, config, mp, authenticate }) {
         const original=unsealRequest(payment.solicitud_mp,config.authSecret);
         requireValue((channel==='mercadopago' && original.processing_mode==='manual')
           || (channel==='tarjeta' && (original.processing_mode==='automatic' || !form?.token)),409,'Hay un intento pendiente con otro método. Recupera su resultado antes de cambiar.');
-        return; // Respuesta perdida: conserva cuerpo y clave originales.
+        return;
       }
       requireValue(config.environment !== 'produccion' || form?.acepto_cobro_real === true,400,'Debes autorizar el cobro real por el total de la orden.');
       if (channel === 'mercadopago') {
@@ -140,31 +134,27 @@ export function createCheckout({ pool, config, mp, authenticate }) {
       requireValue(form.payer?.email === email,400,'Utiliza el correo del comprador de esta orden.');
       const identification = buyerIdentification(form.payer.identification);
       const details=(await db.query('SELECT marca,modelo,cantidad,precio_unitario FROM orden_detalles WHERE orden_id=$1 ORDER BY id',[order.id])).rows;
-      // El importe procede exclusivamente de PostgreSQL. El Brick solo entrega un token temporal.
       const body={type:'online',processing_mode:'automatic',capture_mode:'automatic',external_reference:order.referencia,
         total_amount:money(cents(order.importe_a_cobrar)),payer:{email,...(identification ? {identification} : {})},
         transactions:{payments:[{amount:money(cents(order.importe_a_cobrar)),payment_method:{id:form.payment_method_id,
           type:form.payment_type_id,token:form.token,installments:1}}]},
         items:details.map(item=>({title:`${config.environment === 'prueba' ? 'Prueba' : 'Demostración'}: ${item.marca} ${item.modelo}`,quantity:item.cantidad,unit_price:money(cents(item.precio_unitario))}))};
-      // Sandbox sigue funcionando antes de ejecutar la nueva migración de producción.
       const authorization = config.environment === 'produccion' ? ',autorizado_en=NOW()' : '';
       await db.query(`UPDATE pagos SET solicitud_mp=$2${authorization},actualizado_en=NOW() WHERE id=$1`,[payment.id,JSON.stringify(sealRequest(body,config.authSecret))]);
     });
-    // El COMMIT anterior conserva la idempotencia incluso si el proceso se interrumpe durante POST.
     const failure=await transaction(pool,async db=> {
       const order=await findOrder(db,reference,userId,true);
       const payment=(await db.query('SELECT * FROM pagos WHERE orden_id=$1 ORDER BY id DESC LIMIT 1 FOR UPDATE',[order.id])).rows[0];
-      if(payment.mp_order_id) return; // Otra pestaña terminó el mismo intento.
+      if(payment.mp_order_id) return;
       requireValue(payment.solicitud_mp,409,'Falta preparar el intento.');
       let remote;
       try {remote=await mp.create(unsealRequest(payment.solicitud_mp,config.authSecret),payment.clave_idempotencia);}
       catch(error) {
-        if(!error.definitive) throw error; // Timeout: nunca inventar rechazo ni otra clave.
+        if(!error.definitive) throw error;
         await db.query("UPDATE pagos SET estado_proveedor='failed',detalle_estado_proveedor='solicitud_rechazada',solicitud_mp=NULL WHERE id=$1",[payment.id]);
         return error;
       }
       requireValue(orderIdPattern.test(remote.id || '') && remote.external_reference===order.referencia,502,'Respuesta de creación inválida.');
-      // Guarda el ID incluso si el resultado es rechazado (HTTP 402). La confirmación usa GET.
       await db.query('UPDATE pagos SET mp_order_id=$2,solicitud_mp=NULL,actualizado_en=NOW() WHERE id=$1',[payment.id,remote.id]);
     });
     if(failure) throw failure;
@@ -180,8 +170,6 @@ export function createCheckout({ pool, config, mp, authenticate }) {
   });
 
   router.post('/webhook', async (req, res) => {
-    // Visible en Render > Logs: permite distinguir falta de headers, firma y procesamiento.
-    // No registrar req.body, req.headers, tokens, claves ni datos de tarjeta.
     const started = Date.now();
     const queryId = req.query['data.id'];
     const bodyId = req.body?.data?.id;
@@ -206,13 +194,11 @@ export function createCheckout({ pool, config, mp, authenticate }) {
     if (!['order', 'orders_v2'].includes(req.body.type)) return res.sendStatus(200);
     requireValue(config.environment === 'produccion' ? req.body.live_mode === true : req.body.live_mode !== true,
       400, 'El evento pertenece a otro ambiente.');
-    // Solo consultamos órdenes locales conocidas; el cuerpo no puede marcar una orden pagada.
     const { rows } = await pool.query(`SELECT o.referencia, o.usuario_id FROM ordenes o
       JOIN pagos p ON p.orden_id=o.id WHERE lower(p.mp_order_id)=lower($1) AND p.ambiente=$2`, [id,config.environment]);
-    // Puede llegar antes de que el POST de creación haya persistido el ID: pedimos reintento.
     requireValue(rows.length, 503, 'Orden aún no registrada.');
     await syncOrder(rows[0].referencia, rows[0].usuario_id);
-    res.sendStatus(200); // Respondemos después del COMMIT; ante fallo MP debe reintentar.
+    res.sendStatus(200);
   });
 
   router.use(authenticate);
@@ -224,7 +210,6 @@ export function createCheckout({ pool, config, mp, authenticate }) {
     requireValue(Array.isArray(ids) && ids.length > 0 && ids.length <= 20 && ids.every(Number.isSafeInteger)
       && ids.every(x => x > 0) && new Set(ids).size === ids.length, 400, 'Selección de vehículos inválida.');
     const result = await transaction(pool, async db => {
-      // Serializa los checkouts del mismo usuario incluso entre pestañas y referencias distintas.
       await db.query('SELECT id FROM usuarios WHERE id=$1 FOR UPDATE', [req.user.id]);
       const existing = (await db.query('SELECT * FROM ordenes WHERE referencia=$1', [reference])).rows[0];
       if (existing) {
@@ -252,7 +237,6 @@ export function createCheckout({ pool, config, mp, authenticate }) {
       for (const car of cars) await db.query(`INSERT INTO orden_detalles
         (orden_id,vehiculo_id,apartado_id,marca,modelo,anio,precio_unitario)
         VALUES ($1,$2,$3,$4,$5,$6,$7)`, [order.id, car.id, car.apartado_id, car.marca, car.modelo, car.anio, config.environment === 'prueba' ? config.testUnitPrice : car.precio]);
-      // Persistir ANTES de llamar a MP conserva la idempotencia ante caídas de red o servidor.
       await db.query(`INSERT INTO pagos (orden_id,ambiente,clave_idempotencia,importe)
         VALUES ($1,$2,$3,$4)`, [order.id, config.environment, randomUUID(), total]);
       return { referencia: reference };
@@ -277,8 +261,6 @@ export function createCheckout({ pool, config, mp, authenticate }) {
   });
   router.get('/ordenes/:referencia', async (req, res) => res.json(await orderView(req.params.referencia, req.user.id)));
   router.get('/ordenes/:referencia/comprobante', async (req, res) => {
-    // La sesión y el propietario se validan en el servidor, aunque alguien copie la URL.
-    // Descargar NO crea ni reintenta pagos. Solo acepta un pago acreditado ya verificado.
     const receipt = await transaction(pool, async db => {
       const order = await findOrder(db, req.params.referencia, req.user.id, true);
       requireValue(order.estado === 'pago_confirmado' && order.pago_confirmado_en, 409, 'El comprobante requiere un pago confirmado.');
@@ -302,8 +284,6 @@ export function createCheckout({ pool, config, mp, authenticate }) {
     res.send(pdf);
   });
   router.post('/ordenes/:referencia/cancelar', async (req,res)=> {
-    // Abandonar solo un borrador o un intento rechazado/cancelado, confirmado mediante GET.
-    // Un timeout o pago pendiente puede cobrar: no liberarlo por decisión del navegador.
     await syncOrder(req.params.referencia,req.user.id);
     await transaction(pool,async db=> {
       const order=await findOrder(db,req.params.referencia,req.user.id,true);

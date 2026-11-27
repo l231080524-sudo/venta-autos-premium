@@ -1,7 +1,7 @@
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { requireValue, transaction } from './core.js';
 
-export const AUTH_SESSION_IDLE_MS = 30 * 60 * 1000;
+export const AUTH_SESSION_IDLE_MS = 60 * 1000;
 export const AUTH_SESSION_MAX_MS = 12 * 60 * 60 * 1000;
 export const AUTH_OTP_TTL_MS = 10 * 60 * 1000;
 export const AUTH_OTP_MAX_ATTEMPTS = 5;

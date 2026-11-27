@@ -17,7 +17,6 @@ Para una pregunta general que no puedas responder, reconoce la limitación; no p
 Selecciona hasta 3 IDs del catálogo solo cuando sean pertinentes. No inventes características o IDs. No escribas URLs, HTML ni Markdown; el sitio agrega enlaces y precios verificados en tarjetas.
 Devuelve JSON con respuesta (texto), vehiculos (IDs enteros) y asesor (booleano).`;
 const fail = (status, message) => Object.assign(new Error(message), { status });
-// No se envían perfiles, tokens ni registros de compradores a Gemini.
 export function cleanText(value) {
   return value.replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/gi, '[correo omitido]')
     .replace(/(?:\+?\d[\s().-]*){8,}/g, '[número omitido]')
@@ -54,7 +53,6 @@ export function createChat({ pool, env = process.env, fetcher = fetch, now = Dat
       requireValue(entry.count < 5 && active < 2 && daily < dailyLimit && clients.size < 1000,
         429, 'El asistente alcanzó su límite de consultas. Intenta más tarde o consulta el catálogo.');
       entry.count++; clients.set(req.ip,entry); daily++; active++; acquired=true;
-      // SELECT fijo y únicamente información pública. Nunca SQL construido por la IA.
       const rows = (await pool.query(`SELECT id,marca,modelo,anio,precio,categoria,stock,descripcion,especificaciones
         FROM vehiculos ORDER BY precio,id LIMIT 100`)).rows;
       const catalog = rows.map(v => ({ id:Number(v.id), marca:String(v.marca).slice(0,100), modelo:String(v.modelo).slice(0,150),
@@ -72,7 +70,6 @@ export function createChat({ pool, env = process.env, fetcher = fetch, now = Dat
               responseSchema:{type:'OBJECT',properties:{respuesta:{type:'STRING'},vehiculos:{type:'ARRAY',items:{type:'INTEGER'}},asesor:{type:'BOOLEAN'}},required:['respuesta','vehiculos','asesor']} } }),
         });
       } catch { throw fail(503,'El asistente tardó demasiado en responder. Puedes consultar el catálogo o intentar más tarde.'); }
-      // Nunca se retorna el cuerpo del proveedor, que puede contener detalles privados.
       if (!response.ok) throw fail(response.status === 429 ? 429 : 503,
         response.status === 429 ? 'Gemini alcanzó su cuota. Intenta más tarde o consulta el catálogo.' : 'Gemini no está disponible. Consulta el catálogo o intenta más tarde.');
       const data = await response.json();

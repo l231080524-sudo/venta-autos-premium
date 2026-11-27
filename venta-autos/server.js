@@ -10,6 +10,7 @@ import { createChat } from './backend/chat.js';
 import { cents, requireValue, transaction, hashPassword, verifyPassword, sessionToken, sessionClaims } from './backend/core.js';
 import { AUTH_OTP_MAX_ATTEMPTS, AUTH_SESSION_IDLE_MS, AUTH_SESSION_MAX_MS, createAuthDelivery, createOtpChallenge, normalizePhone, otpMatches } from './backend/auth.js';
 import { registerTotpRoutes, verifyAuthenticator } from './backend/totp.js';
+import { crearCaptcha } from './backend/captcha.js';
 
 const AUTH_FAILURE_LIMIT = 5;
 const AUTH_FAILURE_WINDOW_MS = 15 * 60 * 1000;
@@ -47,11 +48,10 @@ async function makeSession(pool, user, secret, now = Date.now()) {
   };
 }
 
-// Copia las variables de .env.example a tu .env privado; en Render usa Environment.
-// Nunca pegues claves en este archivo. Las migraciones SQL se ejecutan por separado.
 dotenv.config();
 export function createApp({ pool, config = readConfig(), mp = createMercadoPago(config), authDelivery = createAuthDelivery() }) {
   const app = express();
+  const captcha = crearCaptcha();
   app.disable('x-powered-by');
   app.use(cors({ origin: config.origins, methods: ['GET','POST','PUT','DELETE'], allowedHeaders: ['Content-Type','Authorization'], exposedHeaders: ['Content-Disposition'] }));
   app.use(express.json({ limit: '64kb' }));
@@ -64,7 +64,7 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
     if (claims.sessionId) {
       const active = (await pool.query(`UPDATE auth_sessions SET last_seen_at=NOW()
         WHERE id=$1 AND user_id=$2 AND revoked_at IS NULL AND expires_at>NOW()
-          AND last_seen_at>NOW()-INTERVAL '30 minutes' RETURNING id`, [claims.sessionId, claims.userId])).rows[0];
+          AND last_seen_at>NOW()-($3::integer * INTERVAL '1 second') RETURNING id`, [claims.sessionId, claims.userId, AUTH_SESSION_IDLE_MS / 1000])).rows[0];
       requireValue(active, 401, 'Tu sesión venció por inactividad. Vuelve a iniciar sesión.');
       req.authSession = active;
     }
@@ -81,14 +81,20 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
   const startChallenge = async (user, purpose, channel) => createOtpChallenge({
     pool, delivery:authDelivery, user, purpose, channel, secret:config.authSecret,
   });
-  const attempts = new Map();
-  const limitLogin = (req,res,next) => {
-    const now=Date.now();
-    for (const [key,value] of attempts) if (value.until <= now) attempts.delete(key);
-    const entry=attempts.get(req.ip) || { count:0,until:now+60000 };
-    entry.count++; attempts.set(req.ip,entry);
-    requireValue(entry.count<=30,429,'Demasiados intentos. Espera un minuto.'); next();
-  };
+  function limitarIntentos() {
+    const attempts = new Map();
+    return (req, _res, next) => {
+      const now = Date.now();
+      for (const [key, value] of attempts) if (value.until <= now) attempts.delete(key);
+      const entry = attempts.get(req.ip) || { count: 0, until: now + 60_000 };
+      entry.count++;
+      attempts.set(req.ip, entry);
+      requireValue(entry.count <= 30, 429, 'Demasiados intentos. Espera un minuto.');
+      next();
+    };
+  }
+  const limitLogin = limitarIntentos();
+  const limitCaptcha = limitarIntentos();
   app.get('/api/health',async (_req,res) => { await pool.query('SELECT 1'); res.json({ok:true}); });
   registerTotpRoutes(app, { pool, authenticate, limitLogin, serverSecret: config.authSecret });
   app.post('/api/auth/heartbeat',authenticate,(_req,res) => res.json({ ok:true }));
@@ -96,11 +102,13 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
     if (req.authSession) await pool.query('UPDATE auth_sessions SET revoked_at=NOW() WHERE id=$1', [req.authSession.id]);
     res.json({ ok:true });
   });
+  app.get('/api/auth/captcha', limitCaptcha, (_req, res) => res.json(captcha.emitir()));
   app.post('/api/auth/login',limitLogin,async (req,res) => {
     requireValue(config.authSecret.length>=32,503,'Falta configurar AUTH_SECRET en el servidor.');
     const {email,password,method='email'}=req.body;
     requireValue(typeof email==='string' && typeof password==='string' && password.length<=256,400,'Datos de acceso inválidos.');
     requireValue(['email','totp'].includes(method),400,'Selecciona un método de verificación válido.');
+    captcha.validar(req.body.captcha);
     const user=(await pool.query('SELECT * FROM usuarios WHERE lower(email)=lower($1)',[email.trim()])).rows[0];
     if (user && locked(user)) requireValue(false,423,'La cuenta está bloqueada temporalmente. Espera 15 minutos antes de intentarlo de nuevo.');
     const passwordValid = user && await verifyPassword(password,user.password_hash);
@@ -248,7 +256,7 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
     const inventory=(await pool.query('SELECT COALESCE(SUM(stock),0) AS stock, COALESCE(SUM(stock*precio),0) AS valor FROM vehiculos')).rows[0];
     res.json({stockTotal:Number(inventory.stock),valorInventario:Number(inventory.valor),
       unidadesEntregadas:Number((await pool.query('SELECT COALESCE(SUM(compras_totales),0) AS total FROM usuarios')).rows[0].total),
-      ingresosEstimados:0}); // Sandbox no constituye un ingreso real.
+      ingresosEstimados:0});
   });
   app.get('/api/apartados',authenticate,async (req,res)=> {
     res.json((await pool.query(`SELECT a.id,v.marca,v.modelo,v.precio,v.categoria,v.imagen FROM apartados a
@@ -273,7 +281,6 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
       requireValue(deleted.rows.length,404,'Apartado no encontrado.');
     }); res.json({success:true});
   });
-  // Esta ruta antigua jamás volverá a marcar pagos como realizados.
   app.post('/api/apartados/pagar',(_req,res)=>res.status(410).json({error:'El pago simulado fue retirado. Usa Mercado Pago.'}));
   app.use('/api/mercadopago',createCheckout({pool,config,mp,authenticate}));
   app.use((error,_req,res,_next)=> {
@@ -288,7 +295,6 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
 if (process.argv[1] && import.meta.url===pathToFileURL(process.argv[1]).href) {
   if (!process.env.DATABASE_URL) throw new Error('Configura DATABASE_URL en .env.');
   const hostname=new URL(process.env.DATABASE_URL).hostname;
-  // Neon: utiliza su URL con sslmode=require. Local: sin SSL.
   const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,...(['localhost','127.0.0.1'].includes(hostname)?{ssl:false}:{})});
   const server=createApp({pool}).listen(process.env.PORT || 3000,()=>console.log('API AutoPremium iniciada.'));
   process.on('SIGTERM',()=>server.close(()=>pool.end()));

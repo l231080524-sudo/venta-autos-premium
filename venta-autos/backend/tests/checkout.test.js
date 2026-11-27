@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID, createHmac } from 'node:crypto';
+import { randomUUID, createHmac, pbkdf2Sync } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import { createApp } from '../../server.js';
@@ -8,7 +8,6 @@ import { sessionToken } from '../core.js';
 import { otpDigest } from '../auth.js';
 import { totpCode } from '../totp.js';
 
-// Solo base aislada en loopback/55439. Jamás se utiliza DATABASE_URL ni la base del proyecto.
 const url = process.env.TEST_DATABASE_URL;
 test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url }, async t => {
   const parsed = new URL(url);
@@ -67,11 +66,20 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
   server=createApp({pool,config,mp,authDelivery}).listen(0,'127.0.0.1');
   await new Promise(resolve=>server.once('listening',resolve));
   const base=`http://127.0.0.1:${server.address().port}`;
+  async function resolverCaptcha(origin = base) {
+    const response = await fetch(origin + '/api/auth/captcha');
+    assert.equal(response.status, 200);
+    const { id, semilla, huella } = await response.json();
+    for (let numero = 0; numero < 1000; numero++) {
+      if (pbkdf2Sync(semilla, String(numero), 400, 16, 'sha256').toString('hex') === huella) return { id, numero };
+    }
+    assert.fail('CAPTCHA inválido');
+  }
   async function request(path,body,user=1,method='POST',headers={},origin=base) {
+    if (path === '/api/auth/login' && !Object.hasOwn(body, 'captcha')) body = { ...body, captcha: await resolverCaptcha(origin) };
     const response=await fetch(origin+path,{method,headers:{'Content-Type':'application/json',Authorization:`Bearer ${sessionToken(user,config.authSecret)}`,...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});
     const result=await response.text(); return {status:response.status,data:result?JSON.parse(result):null};
   }
-  // Forma real del Brick mexicano: puede no pedir ni entregar identificación.
   const form={token:'token-falso-de-prueba',payment_method_id:'visa',payment_type_id:'credit_card',installments:1,payer:{email:config.buyerEmail}};
   const ref=randomUUID(), path=`/api/mercadopago/ordenes/${ref}`;
   await t.test('sesiones, precio servidor y propiedad del carrito',async()=> {
@@ -135,7 +143,6 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     const body={type:'order',data:{id:remote.id},live_mode:false};
     assert.equal((await request('/api/mercadopago/webhook?data.id='+remote.id,body)).status,401);
     const ts=String(Date.now()),requestId='req-webhook',signature=createHmac('sha256',config.webhookSecret).update(`id:${remote.id.toLowerCase()};request-id:${requestId};ts:${ts};`).digest('hex');
-    // Webhook responde texto OK; usamos fetch directamente.
     const notify=()=>fetch(base+'/api/mercadopago/webhook?data.id='+remote.id,{method:'POST',headers:{'Content-Type':'application/json','x-signature':`ts=${ts},v1=${signature}`,'x-request-id':requestId},body:JSON.stringify(body)});
     assert.equal((await notify()).status,200); assert.equal((await notify()).status,200);
     assert.equal((await request(path,undefined,1,'GET')).data.estado,'confirmado');
@@ -162,7 +169,6 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     assert.ok(Buffer.from(await first.arrayBuffer()).subarray(0,5).equals(Buffer.from('%PDF-')));
     assert.equal((await download()).status,200);
     assert.equal(keys.length,before);
-    // Los cambios actuales del catálogo no modifican el histórico utilizado por el PDF.
     await pool.query("UPDATE vehiculos SET modelo='Modelo actualizado',precio=999 WHERE id=1");
     const historical=(await pool.query('SELECT modelo,precio_unitario FROM orden_detalles WHERE orden_id=1')).rows[0];
     assert.equal(historical.modelo,'Modelo');
@@ -170,6 +176,16 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     await pool.query("UPDATE pagos SET estado_proveedor='refunded',detalle_estado_proveedor='refunded' WHERE mp_payment_id='PAYTEST2'");
     assert.equal((await download()).status,409);
     await pool.query("UPDATE pagos SET estado_proveedor='processed',detalle_estado_proveedor='accredited' WHERE mp_payment_id='PAYTEST2'");
+  });
+  await t.test('inicio exige un CAPTCHA válido y de un solo uso', async () => {
+    const credenciales = { email:'uno@example.test', password:'incorrecta' };
+    const sinCaptcha = await request('/api/auth/login', { ...credenciales, captcha:null });
+    assert.equal(sinCaptcha.status, 400);
+    const captchaInvalido = await resolverCaptcha();
+    assert.equal((await request('/api/auth/login', { ...credenciales, captcha:{...captchaInvalido, numero:(captchaInvalido.numero+1)%1000} })).status, 400);
+    const captcha = await resolverCaptcha();
+    assert.equal((await request('/api/auth/login', { ...credenciales, captcha })).status, 401);
+    assert.equal((await request('/api/auth/login', { ...credenciales, captcha })).status, 400);
   });
   await t.test('contraseña heredada requiere OTP y registro verifica correo',async()=> {
     const login=await request('/api/auth/login',{email:'uno@example.test',password:'legacy123'});
@@ -248,13 +264,17 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     await pool.query("UPDATE usuarios SET auth_bloqueado_hasta=NOW()-INTERVAL '1 second' WHERE id=2");
     assert.equal((await request('/api/auth/login',{email:'dos@example.test',password:'otra'})).status,200);
   });
-  await t.test('sesión se invalida después de treinta minutos de inactividad',async()=> {
+  await t.test('sesión se invalida después de un minuto de inactividad',async()=> {
     const login=await request('/api/auth/login',{email:'uno@example.test',password:'legacy123'});
     const code=sentCodes.at(-1).code;
     const verified=await request('/api/auth/verificar',{challengeId:login.data.challengeId,code});
     assert.equal(verified.status,200);
     const tokenPayload=JSON.parse(Buffer.from(verified.data.usuario.token.split('.')[0],'base64url').toString());
-    await pool.query("UPDATE auth_sessions SET last_seen_at=NOW()-INTERVAL '31 minutes' WHERE id=$1",[tokenPayload.sid]);
+    assert.equal(verified.data.usuario.idleTimeoutSeconds,60);
+    await pool.query("UPDATE auth_sessions SET last_seen_at=NOW()-INTERVAL '50 seconds' WHERE id=$1",[tokenPayload.sid]);
+    const active=await fetch(base+'/api/auth/heartbeat',{method:'POST',headers:{Authorization:'Bearer '+verified.data.usuario.token}});
+    assert.equal(active.status,200);
+    await pool.query("UPDATE auth_sessions SET last_seen_at=NOW()-INTERVAL '61 seconds' WHERE id=$1",[tokenPayload.sid]);
     const expired=await fetch(base+'/api/auth/heartbeat',{method:'POST',headers:{Authorization:`Bearer ${verified.data.usuario.token}`}});
     assert.equal(expired.status,401);
   });
@@ -289,7 +309,7 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     const productionForm={...form,payer:{email:'uno@example.test'}};
     assert.equal((await request(prodPath+'/pagar',productionForm)).status,400);
     assert.equal((await request(prodPath+'/pagar',{...form,acepto_cobro_real:true})).status,400);
-    await pool.query('UPDATE vehiculos SET precio=1'); // El importe autorizado es el histórico mostrado.
+    await pool.query('UPDATE vehiculos SET precio=1');
     const before=keys.length;
     const submissions=await Promise.all([request(prodPath+'/pagar',{...productionForm,acepto_cobro_real:true}),request(prodPath+'/pagar',{...productionForm,acepto_cobro_real:true})]);
     assert.ok(submissions.every(result=>[200,409].includes(result.status)));
