@@ -1,5 +1,7 @@
 import { useCallback, useState, useEffect } from 'react';
 import { VistaPanel } from './Panel.vista.jsx';
+import { vigilarInactividad } from './vigilarInactividad';
+import { useCaptcha } from './useCaptcha';
 import { VistaAcceso } from './Acceso.vista.jsx';
 
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
@@ -34,6 +36,7 @@ async function adminFetch(url, options = {}) {
 }
 
 export default function App() {
+  const captcha = useCaptcha(API_URL);
   const [adminUser, setAdminUser] = useState(() => {
     try {
       const guardado = localStorage.getItem('admin_session');
@@ -82,7 +85,9 @@ export default function App() {
 
     try {
       if (!challenge) {
-        const data = await authRequest('login', { email: loginEmail, password: loginPassword });
+        const data = await authRequest('login', {
+          email: loginEmail, password: loginPassword, captcha: await captcha.resolverCaptcha(),
+        });
         if (!data.requiereCodigo || !data.challengeId) throw new Error('No pudo iniciarse la verificación.');
         setChallenge(data);
         setLoginPassword('');
@@ -102,6 +107,7 @@ export default function App() {
     } catch (err) {
       setLoginError(err.message);
     } finally {
+      if (!challenge) captcha.reiniciarCaptcha();
       setLoginLoading(false);
     }
   };
@@ -138,17 +144,24 @@ export default function App() {
     const timer = setTimeout(cargarDatos, 0);
     const expire = () => {
       setAdminUser(null);
+      localStorage.removeItem('admin_session');
       setVehiculos([]);
       setUsuariosDb([]);
       setLoginError('Tu sesión venció. Vuelve a iniciar sesión.');
     };
-    const check = () => { void adminFetch(`${API_URL}/api/auth/heartbeat`, { method: 'POST' }).catch(() => {}); };
+    const heartbeat = () => {
+      void adminFetch(`${API_URL}/api/auth/heartbeat`, { method: 'POST' }).catch(() => {});
+    };
+    const timeout = () => {
+      void adminFetch(`${API_URL}/api/auth/logout`, { method: 'POST' }).catch(() => {});
+      expire();
+    };
     window.addEventListener('admin-session-expired', expire);
-    window.addEventListener('focus', check);
+    const detener = vigilarInactividad(timeout, heartbeat);
     return () => {
       clearTimeout(timer);
+      detener();
       window.removeEventListener('admin-session-expired', expire);
-      window.removeEventListener('focus', check);
     };
   }, [adminUser, cargarDatos]);
 
@@ -278,7 +291,7 @@ export default function App() {
     return <VistaAcceso {...{
       loginEmail, setLoginEmail, loginPassword, setLoginPassword, challenge,
       setChallenge, otp, setOtp, loginError, setLoginError, loginLoading,
-      manejarLoginSeguro,
+      manejarLoginSeguro, captcha,
     }} />;
   }
 

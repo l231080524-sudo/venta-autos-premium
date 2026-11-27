@@ -1,5 +1,3 @@
-// URL pública del BACKEND. Configurar VITE_API_URL en .env y en Vercel.
-// Nunca colocar credenciales privadas de Mercado Pago en variables VITE_.
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
 export function authHeaders(user) {
   return user?.token ? { Authorization: `Bearer ${user.token}` } : {};
@@ -17,7 +15,6 @@ export async function api(path, user, options = {}) {
 export const formatMoney = amount => Number(amount).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
 export async function downloadReceipt(reference, user) {
-  // El token viaja en Authorization; nunca en la URL del PDF.
   const response = await fetch(`${API_URL}/api/mercadopago/ordenes/${encodeURIComponent(reference)}/comprobante`, {
     headers: authHeaders(user),
   });

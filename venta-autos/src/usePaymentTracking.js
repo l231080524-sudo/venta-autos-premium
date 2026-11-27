@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api';
 
-// Solo consulta el mismo intento: jamás crea órdenes o vuelve a enviar una tarjeta.
 export default function usePaymentTracking(order, user, busy, update, confirmed) {
   const key=`${order?.referencia || ''}:${order?.mp_order_id || ''}`;
   const watch=Boolean(user?.token && order?.mp_order_id && ['pendiente','en_proceso'].includes(order.estado));

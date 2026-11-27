@@ -1,5 +1,6 @@
 import html from './Acceso.html?raw';
 import { crearVistas } from './plantillas';
+import { CaptchaAcceso } from './CaptchaAcceso';
 
 const vista = crearVistas(html);
 
@@ -15,7 +16,8 @@ export function VistaAcceso({
   loginError,
   setLoginError,
   loginLoading,
-  manejarLoginSeguro
+  manejarLoginSeguro,
+  captcha
 }) {
   return vista("acceso-administrativo", {
     "aviso-de-error": loginError && vista("error-de-acceso", {
@@ -46,6 +48,7 @@ export function VistaAcceso({
         "onChange": e => setLoginPassword(e.target.value)
       }
     }, true),
+    "captcha": !challenge && <CaptchaAcceso {...captcha} ocupado={loginLoading} />,
     "texto-del-boton": loginLoading ? 'Verificando…' : challenge ? 'Verificar código' : 'Continuar con verificación'
   }, {
     "formulario-de-acceso": {

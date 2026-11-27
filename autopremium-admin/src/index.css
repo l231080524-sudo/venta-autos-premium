@@ -6,3 +6,28 @@ body {
   background-color: #050505; 
   color: white; 
 }
+
+.captcha-control {
+  display: inline-flex;
+  align-items: center;
+  gap: .65rem;
+  min-height: 44px;
+  padding: .6rem .85rem;
+  border: 1px solid currentColor;
+  border-radius: .5rem;
+  text-align: left;
+}
+
+.captcha-indicador {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 1px solid currentColor;
+  border-radius: .2rem;
+}
+
+.captcha-control[aria-pressed="true"] .captcha-indicador::after {
+  content: '✓';
+}

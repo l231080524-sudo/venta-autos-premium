@@ -2,11 +2,27 @@ import { test, expect } from '@playwright/test';
 
 const account = { id:23,nombre:'Cliente protegido',email:'cliente@example.test',rol:'cliente',token:'session-test-token' };
 
+test('cierra la sesión local al cumplirse un minuto sin actividad', async ({ page }) => {
+  const inicio = new Date('2026-01-01T00:00:00Z');
+  await page.clock.install({ time: inicio });
+  await page.clock.pauseAt(new Date(inicio.getTime() + 5000));
+  await page.addInitScript(usuario => localStorage.setItem('usuario_premium', JSON.stringify(usuario)), account);
+  await page.route('**/api/**', route => route.fulfill({ json: [] }));
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Cuenta y preferencias' })).toBeVisible();
+  await page.clock.fastForward(59_000);
+  expect(await page.evaluate(() => Boolean(localStorage.getItem('usuario_premium')))).toBe(true);
+  await page.clock.fastForward(1_001);
+  await expect(page.getByRole('alert')).toContainText('Sesión caducada');
+  expect(await page.evaluate(() => localStorage.getItem('usuario_premium'))).toBeNull();
+});
+
 test('inicia sesión con correo y contraseña, después valida el código de la app autenticadora', async ({ page }) => {
   let loginPayload;
   let verificationPayload;
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
+    if (url.pathname === '/api/auth/captcha') return route.fulfill({ json: {"id":"captcha-de-prueba","semilla":"010101010101010101010101010101010101010101010101","huella":"2e6a78b0cdf00498af793d23b4fede6f"} });
     if (url.pathname === '/api/auth/login') {
       loginPayload = route.request().postDataJSON();
       return route.fulfill({ json:{ requiereCodigo:true,method:'totp',destination:null,challengeId:'4f53207d-95d3-4796-a50b-e7b7d63a1e2c',expiresInSeconds:600 } });
@@ -31,6 +47,8 @@ test('inicia sesión con correo y contraseña, después valida el código de la 
   await expect(page.getByRole('radio')).toHaveCount(2);
   await expect(page.getByLabel('Enviar código al correo')).toBeChecked();
   await page.getByLabel('Usar código de la app autenticadora').check();
+  await page.getByRole('button',{name:'No soy un robot'}).click();
+  await expect(page.getByText('Verificación completada')).toBeVisible();
   await page.getByRole('button',{name:'Continuar con verificación'}).click();
 
   await expect(page.getByText('Abre tu app autenticadora y escribe el código actual de AutoPremium.')).toBeVisible();
@@ -39,7 +57,7 @@ test('inicia sesión con correo y contraseña, después valida el código de la 
   await page.getByRole('button',{name:'Verificar e iniciar sesión'}).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('usuario_premium') || 'null')?.email)).toBe(account.email);
-  expect(loginPayload).toMatchObject({ email:'cliente@example.test',password:'clave-de-prueba',method:'totp' });
+  expect(loginPayload).toMatchObject({ email:'cliente@example.test',password:'clave-de-prueba',method:'totp',captcha:{id:'captcha-de-prueba',numero:0} });
   expect(verificationPayload).toMatchObject({ challengeId:'4f53207d-95d3-4796-a50b-e7b7d63a1e2c',code:'123456' });
 });
 

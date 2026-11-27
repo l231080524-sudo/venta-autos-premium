@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { authHeaders } from './api';
+import { vigilarInactividad } from './vigilarInactividad';
 import { VistaSitio } from './App.vista.jsx';
 
 export default function App() {
@@ -56,48 +57,25 @@ export default function App() {
 
   useEffect(() => {
     if (!usuario?.token) return undefined;
-    const idleLimit = 30 * 60 * 1000;
-    let lastActivity = Date.now();
-    let idleTimer;
-    let heartbeatBusy = false;
-    const scheduleExpiry = () => {
-      window.clearTimeout(idleTimer);
-      idleTimer = window.setTimeout(logout, idleLimit);
-    };
-    const markActivity = () => {
-      if (Date.now() - lastActivity >= idleLimit) {
-        logout();
-        return;
-      }
-      lastActivity = Date.now();
-      scheduleExpiry();
-    };
-    const heartbeat = async () => {
-      if (heartbeatBusy || Date.now() - lastActivity >= 5 * 60 * 1000) return;
-      heartbeatBusy = true;
-      try {
-        const response = await fetch(`${API_URL}/api/auth/heartbeat`, {
-          method:'POST', headers:{ Authorization:`Bearer ${usuario.token}` },
-        });
-        if (response.status===401) window.dispatchEvent(new Event('autopremium:session-expired'));
-      } catch {
-      } finally { heartbeatBusy = false; }
-    };
+    const token = usuario.token;
     const expireListener = () => {
+      if (usuarioRef.current?.token !== token) return;
       logout();
       setSessionMessage('Sesión caducada. Vuelve a iniciar sesión para continuar.');
     };
-    const activityEvents = ['pointerdown','keydown','touchstart','scroll','wheel'];
-    activityEvents.forEach(name => window.addEventListener(name,markActivity,{passive:true}));
-    window.addEventListener('autopremium:session-expired',expireListener);
-    const heartbeatTimer=window.setInterval(heartbeat,5*60*1000);
-    scheduleExpiry();
-    heartbeat();
+    const heartbeat = () => {
+      void fetch(`${API_URL}/api/auth/heartbeat`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      }).then(response => {
+        if (response.status === 401) expireListener();
+      }).catch(() => {});
+    };
+    window.addEventListener('autopremium:session-expired', expireListener);
+    const detener = vigilarInactividad(expireListener, heartbeat);
     return () => {
-      window.clearTimeout(idleTimer);
-      window.clearInterval(heartbeatTimer);
-      activityEvents.forEach(name => window.removeEventListener(name,markActivity));
-      window.removeEventListener('autopremium:session-expired',expireListener);
+      detener();
+      window.removeEventListener('autopremium:session-expired', expireListener);
     };
   }, [API_URL, logout, usuario?.token]);
 

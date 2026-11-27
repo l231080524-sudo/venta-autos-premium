@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useCaptcha } from '../useCaptcha';
 import { VistaAuthModal } from './AuthModal.vista.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -16,6 +17,7 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
   const [codigo, setCodigo] = useState('');
   const [desafio, setDesafio] = useState(null);
   const [esperaReenvio, setEsperaReenvio] = useState(0);
+  const captcha = useCaptcha(API_URL);
 
   useEffect(() => {
     if (paso !== 'codigo' || esperaReenvio <= 0) return undefined;
@@ -42,7 +44,7 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
       const endpoint = esRegistro ? '/api/auth/registro' : '/api/auth/login';
       const payload = esRegistro
         ? { nombre, email, password, telefono }
-        : { email, password, method: metodo };
+        : { email, password, method: metodo, captcha: await captcha.resolverCaptcha() };
       const data = await enviar(endpoint, payload);
       setDesafio(data);
       setCodigo('');
@@ -51,6 +53,7 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
     } catch (err) {
       setError(err.message);
     } finally {
+      if (!esRegistro) captcha.reiniciarCaptcha();
       setLoading(false);
     }
   };
@@ -102,6 +105,6 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
     nombre, setNombre, email, setEmail, password, setPassword, telefono,
     setTelefono, metodo, setMetodo, codigo, setCodigo, desafio, esperaReenvio,
     manejarEnvio, verificarCodigo, reenviarCodigo, volver, titulo,
-    usaAutenticador,
+    usaAutenticador, captcha,
   }} />;
 }

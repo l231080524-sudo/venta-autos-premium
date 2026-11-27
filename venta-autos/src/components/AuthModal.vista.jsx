@@ -1,6 +1,7 @@
 import htmlVistas from "./AuthModal.html?raw";
 import { crearVistas } from "../plantillas.js";
 import AccessibleDialog from './AccessibleDialog';
+import { CaptchaAcceso } from '../CaptchaAcceso';
 const vista = crearVistas(htmlVistas);
 export function VistaAuthModal({
   setModalAuth,
@@ -29,7 +30,8 @@ export function VistaAuthModal({
   reenviarCodigo,
   volver,
   titulo,
-  usaAutenticador
+  usaAutenticador,
+  captcha
 }) {
   return <AccessibleDialog title={titulo} onClose={() => setModalAuth({
     abierto: false,
@@ -64,6 +66,7 @@ export function VistaAuthModal({
             "onChange": () => setMetodo('totp')
           }
         }),
+        "captcha": !esRegistro && <CaptchaAcceso {...captcha} ocupado={loading} />,
         "texto-del-boton": loading ? 'Procesando…' : esRegistro ? 'Crear cuenta y verificar correo' : 'Continuar con verificación',
         "mensaje-de-registro": esRegistro ? '¿Ya tienes cuenta?' : '¿Eres nuevo cliente?',
         "enlace-de-registro": esRegistro ? 'Inicia sesión' : 'Regístrate aquí'

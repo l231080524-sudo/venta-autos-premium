@@ -12,6 +12,7 @@ const user = { id: 999, nombre: 'Cliente de prueba', email: 'prueba@example.test
 test.beforeEach(async ({ page }) => {
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
+    if (url.pathname === '/api/auth/captcha') return route.fulfill({ json: {"id":"captcha-de-prueba","semilla":"010101010101010101010101010101010101010101010101","huella":"2e6a78b0cdf00498af793d23b4fede6f"} });
     if (url.pathname.startsWith('/api/')) {
       const body = url.pathname === '/api/vehiculos' ? cars : url.pathname === '/api/auth/login' || url.pathname === '/api/auth/registro'
         ? { requiereCodigo: true, method: 'email', destination: 'p***@example.test', challengeId: 'prueba-auth', expiresInSeconds: 600 }
@@ -120,6 +121,10 @@ for (const theme of ['dark', 'light']) {
     await expect(page.getByLabel('Contraseña')).toBeFocused();
     await page.keyboard.type('dato-de-prueba-12345');
     await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: 'No soy un robot' })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('button', { name: 'Verificación completada' })).toBeFocused();
     await page.keyboard.press('Tab');
     await page.keyboard.press('Enter');
     await expect(page.getByRole('dialog').getByRole('heading', { name: 'Verificación en dos pasos' }).last()).toBeVisible();

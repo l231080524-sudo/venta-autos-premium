@@ -42,7 +42,12 @@ test('pago pendiente consulta hasta seis veces y ofrece asesor sin cobrar',async
   await page.goto(`/pago/${reference}`);await expect(page.getByText('Estamos revisando este intento automáticamente, hasta seis consultas.',{exact:false})).toBeVisible();
   await expect(page.getByRole('button',{name:'Actualizar estado'})).toBeEnabled();
   const initial=syncs;
-  for(let i=0;i<6;i++){await page.clock.fastForward(10000);await expect.poll(()=>syncs).toBe(initial+i+1);await expect(page.getByText(`Consultas automáticas: ${i+1} de 6.`)).toBeVisible();}
+  for(let i=0;i<6;i++){
+    await page.clock.fastForward(10000);
+    await expect.poll(()=>syncs).toBe(initial+i+1);
+    await expect(page.getByText(`Consultas automáticas: ${i+1} de 6.`)).toBeVisible();
+    if(i===2) await page.keyboard.press('Shift');
+  }
   await expect(page.getByRole('link',{name:'Pedir ayuda al asesor por WhatsApp'})).toBeVisible();
   await page.clock.fastForward(60000);expect(syncs).toBe(initial+6);expect(payments).toBe(0);
 });

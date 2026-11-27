@@ -80,7 +80,6 @@ test('producción suma precios, exige autorización y usa la clave del servidor 
 test.beforeEach(async({page})=> {
   await page.addInitScript(user=> {
     localStorage.setItem('usuario_premium',JSON.stringify(user));
-    // Sustituye el SDK externo: ningún dato ni solicitud de pago llega a Mercado Pago.
     window.MercadoPago=class {
       constructor(key) {window.mpPublicKey=key;}
       bricks() {return {create:async(_type,id,settings)=> {
