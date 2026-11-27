@@ -12,7 +12,7 @@ const user = { id: 999, nombre: 'Cliente de prueba', email: 'prueba@example.test
 test.beforeEach(async ({ page }) => {
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
-    if (url.pathname === '/api/auth/captcha') return route.fulfill({ json: {"id":"captcha-de-prueba","semilla":"010101010101010101010101010101010101010101010101","huella":"2e6a78b0cdf00498af793d23b4fede6f"} });
+    if (url.pathname === '/api/auth/captcha/texto') return route.fulfill({ json: {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","imagen":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMzYiIGhlaWdodD0iNjQiLz4="} });
     if (url.pathname.startsWith('/api/')) {
       const body = url.pathname === '/api/vehiculos' ? cars : url.pathname === '/api/auth/login' || url.pathname === '/api/auth/registro'
         ? { requiereCodigo: true, method: 'email', destination: 'p***@example.test', challengeId: 'prueba-auth', expiresInSeconds: 600 }
@@ -122,10 +122,13 @@ for (const theme of ['dark', 'light']) {
     await page.keyboard.type('dato-de-prueba-12345');
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
-    await expect(page.getByRole('button', { name: 'No soy un robot' })).toBeFocused();
-    await page.keyboard.press('Enter');
-    await expect(page.getByRole('button', { name: 'Verificación completada' })).toBeFocused();
-    await page.keyboard.press('Tab');
+    const codigoCaptcha = page.getByLabel('Escribe el código de la imagen o del audio');
+    for (let intento = 0; intento < 10; intento++) {
+      if (await codigoCaptcha.evaluate(el => el === document.activeElement)) break;
+      await page.keyboard.press('Tab');
+    }
+    await expect(codigoCaptcha).toBeFocused();
+    await page.keyboard.type('026483');
     await page.keyboard.press('Enter');
     await expect(page.getByRole('dialog').getByRole('heading', { name: 'Verificación en dos pasos' }).last()).toBeVisible();
     await page.getByLabel('Código de seis dígitos').fill('123456');
@@ -393,6 +396,7 @@ test('errores de catálogo y de acceso se anuncian con texto', async ({ page }) 
   await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
   await page.getByLabel('Correo electrónico').fill(user.email);
   await page.getByLabel('Contraseña').fill('dato-de-prueba');
+  await page.getByLabel('Escribe el código de la imagen o del audio').fill('026483');
   await page.getByRole('button', { name: 'Continuar con verificación' }).click();
   await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('Correo o contraseña incorrectos.');
   await audit(page);
@@ -446,6 +450,7 @@ test('cuenta: acceso, nombre, preferencias y cierre de sesión', async ({ page }
   await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
   await page.getByLabel('Correo electrónico').fill(user.email);
   await page.getByLabel('Contraseña').fill('dato-de-prueba');
+  await page.getByLabel('Escribe el código de la imagen o del audio').fill('026483');
   await page.getByRole('button', { name: 'Continuar con verificación' }).click();
   await page.getByLabel('Código de seis dígitos').fill('123456');
   await page.getByRole('button', { name: 'Verificar e iniciar sesión' }).click();

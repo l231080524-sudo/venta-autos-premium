@@ -36,7 +36,6 @@ async function adminFetch(url, options = {}) {
 }
 
 export default function App() {
-  const captcha = useCaptcha(API_URL);
   const [adminUser, setAdminUser] = useState(() => {
     try {
       const guardado = localStorage.getItem('admin_session');
@@ -48,6 +47,7 @@ export default function App() {
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [challenge, setChallenge] = useState(null);
+  const captcha = useCaptcha(API_URL, !challenge && !adminUser);
   const [otp, setOtp] = useState('');
   const [loginError, setLoginError] = useState(null);
   const [loginLoading, setLoginLoading] = useState(false);

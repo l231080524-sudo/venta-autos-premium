@@ -1,12 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID, createHmac, pbkdf2Sync } from 'node:crypto';
+import { randomUUID, createHmac } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import { createApp } from '../../server.js';
 import { sessionToken } from '../core.js';
 import { otpDigest } from '../auth.js';
 import { totpCode } from '../totp.js';
+import { crearCaptchaTexto } from '../captchaTexto.js';
 
 const url = process.env.TEST_DATABASE_URL;
 test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url }, async t => {
@@ -63,17 +64,14 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     get: async id => structuredClone(provider.get(id)),
   };
   const authDelivery = { sendEmail: async (destination,code,purpose) => sentCodes.push({channel:'email',destination,code,purpose}) };
-  server=createApp({pool,config,mp,authDelivery}).listen(0,'127.0.0.1');
+  server=createApp({pool,config,mp,authDelivery,captchaTexto:crearCaptchaTexto({ generarCodigo: () => '026483' })}).listen(0,'127.0.0.1');
   await new Promise(resolve=>server.once('listening',resolve));
   const base=`http://127.0.0.1:${server.address().port}`;
   async function resolverCaptcha(origin = base) {
-    const response = await fetch(origin + '/api/auth/captcha');
+    const response = await fetch(origin + '/api/auth/captcha/texto');
     assert.equal(response.status, 200);
-    const { id, semilla, huella } = await response.json();
-    for (let numero = 0; numero < 1000; numero++) {
-      if (pbkdf2Sync(semilla, String(numero), 400, 16, 'sha256').toString('hex') === huella) return { id, numero };
-    }
-    assert.fail('CAPTCHA inválido');
+    const { id } = await response.json();
+    return { id, respuesta: '026483' };
   }
   async function request(path,body,user=1,method='POST',headers={},origin=base) {
     if (path === '/api/auth/login' && !Object.hasOwn(body, 'captcha')) body = { ...body, captcha: await resolverCaptcha(origin) };
@@ -182,7 +180,7 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     const sinCaptcha = await request('/api/auth/login', { ...credenciales, captcha:null });
     assert.equal(sinCaptcha.status, 400);
     const captchaInvalido = await resolverCaptcha();
-    assert.equal((await request('/api/auth/login', { ...credenciales, captcha:{...captchaInvalido, numero:(captchaInvalido.numero+1)%1000} })).status, 400);
+    assert.equal((await request('/api/auth/login', { ...credenciales, captcha:{...captchaInvalido, respuesta:'000000'} })).status, 400);
     const captcha = await resolverCaptcha();
     assert.equal((await request('/api/auth/login', { ...credenciales, captcha })).status, 401);
     assert.equal((await request('/api/auth/login', { ...credenciales, captcha })).status, 400);
@@ -217,7 +215,7 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     assert.equal((await request('/api/auth/reenviar-codigo', { challengeId })).status, 410);
   });
   await t.test('activa Google Authenticator y verifica el acceso sin enviar un código ni permitir reutilizarlo', async subtest => {
-    const isolatedServer = createApp({ pool, config, mp, authDelivery }).listen(0,'127.0.0.1');
+    const isolatedServer = createApp({ pool, config, mp, authDelivery, captchaTexto: crearCaptchaTexto({ generarCodigo: () => '026483' }) }).listen(0,'127.0.0.1');
     subtest.after(() => new Promise(resolve => isolatedServer.close(resolve)));
     await new Promise(resolve => isolatedServer.once('listening', resolve));
     const origin = `http://127.0.0.1:${isolatedServer.address().port}`;
@@ -257,11 +255,18 @@ test('checkout integrado con PostgreSQL y proveedor controlado', { skip: !url },
     const replay = await authenticatorLogin();
     assert.equal((await send('/api/auth/verificar', { challengeId: replay.data.challengeId, code })).status, 401);
   });
-  await t.test('bloquea la cuenta después de cinco contraseñas incorrectas',async()=> {
+  await t.test('bloquea la cuenta durante 30 segundos después de cinco contraseñas incorrectas',async()=> {
     for(let attempt=0;attempt<4;attempt++) assert.equal((await request('/api/auth/login',{email:'dos@example.test',password:'incorrecta'})).status,401);
-    assert.equal((await request('/api/auth/login',{email:'dos@example.test',password:'incorrecta'})).status,423);
+    const inicio = Date.now();
+    const bloqueo = await request('/api/auth/login',{email:'dos@example.test',password:'incorrecta'});
+    assert.equal(bloqueo.status,423);
+    assert.match(bloqueo.data.error,/30 segundos/);
+    const { auth_bloqueado_hasta } = (await pool.query('SELECT auth_bloqueado_hasta FROM usuarios WHERE id=2')).rows[0];
+    assert.ok(auth_bloqueado_hasta.getTime() >= inicio + 30_000);
+    assert.ok(auth_bloqueado_hasta.getTime() <= Date.now() + 30_000);
     assert.equal((await request('/api/auth/login',{email:'dos@example.test',password:'otra'})).status,423);
     await pool.query("UPDATE usuarios SET auth_bloqueado_hasta=NOW()-INTERVAL '1 second' WHERE id=2");
+    assert.equal((await request('/api/auth/login',{email:'dos@example.test',password:'incorrecta'})).status,401);
     assert.equal((await request('/api/auth/login',{email:'dos@example.test',password:'otra'})).status,200);
   });
   await t.test('sesión se invalida después de un minuto de inactividad',async()=> {

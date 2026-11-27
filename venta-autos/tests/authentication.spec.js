@@ -22,7 +22,7 @@ test('inicia sesión con correo y contraseña, después valida el código de la 
   let verificationPayload;
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
-    if (url.pathname === '/api/auth/captcha') return route.fulfill({ json: {"id":"captcha-de-prueba","semilla":"010101010101010101010101010101010101010101010101","huella":"2e6a78b0cdf00498af793d23b4fede6f"} });
+    if (url.pathname === '/api/auth/captcha/texto') return route.fulfill({ json: {"id":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","imagen":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMzYiIGhlaWdodD0iNjQiLz4="} });
     if (url.pathname === '/api/auth/login') {
       loginPayload = route.request().postDataJSON();
       return route.fulfill({ json:{ requiereCodigo:true,method:'totp',destination:null,challengeId:'4f53207d-95d3-4796-a50b-e7b7d63a1e2c',expiresInSeconds:600 } });
@@ -47,8 +47,7 @@ test('inicia sesión con correo y contraseña, después valida el código de la 
   await expect(page.getByRole('radio')).toHaveCount(2);
   await expect(page.getByLabel('Enviar código al correo')).toBeChecked();
   await page.getByLabel('Usar código de la app autenticadora').check();
-  await page.getByRole('button',{name:'No soy un robot'}).click();
-  await expect(page.getByText('Verificación completada')).toBeVisible();
+  await page.getByLabel('Escribe el código de la imagen o del audio').fill('026483');
   await page.getByRole('button',{name:'Continuar con verificación'}).click();
 
   await expect(page.getByText('Abre tu app autenticadora y escribe el código actual de AutoPremium.')).toBeVisible();
@@ -57,7 +56,7 @@ test('inicia sesión con correo y contraseña, después valida el código de la 
   await page.getByRole('button',{name:'Verificar e iniciar sesión'}).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('usuario_premium') || 'null')?.email)).toBe(account.email);
-  expect(loginPayload).toMatchObject({ email:'cliente@example.test',password:'clave-de-prueba',method:'totp',captcha:{id:'captcha-de-prueba',numero:0} });
+  expect(loginPayload).toMatchObject({ email:'cliente@example.test',password:'clave-de-prueba',method:'totp',captcha:{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',respuesta:'026483'} });
   expect(verificationPayload).toMatchObject({ challengeId:'4f53207d-95d3-4796-a50b-e7b7d63a1e2c',code:'123456' });
 });
 

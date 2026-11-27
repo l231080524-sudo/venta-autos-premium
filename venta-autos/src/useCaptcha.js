@@ -1,52 +1,48 @@
-import { useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-const codificador = new TextEncoder();
+export function useCaptcha(apiUrl, activo) {
+  const [reto, setReto] = useState(null);
+  const [respuesta, setRespuesta] = useState('');
+  const [error, setError] = useState('');
+  const [version, pedirNuevo] = useState(0);
 
-async function resolver(apiUrl) {
-  const response = await fetch(apiUrl + '/api/auth/captcha', { cache: 'no-store' });
-  if (response.status === 404) return null;
-  if (!response.ok) throw new Error('No se pudo iniciar la verificación. Inténtalo de nuevo.');
-  const { id, semilla, huella } = await response.json();
-  if (typeof id !== 'string' || !/^[a-f0-9]{48}$/.test(semilla) || !/^[a-f0-9]{32}$/.test(huella)) {
-    throw new Error('No se recibió una verificación válida.');
-  }
-  const llave = await window.crypto.subtle.importKey('raw', codificador.encode(semilla), 'PBKDF2', false, ['deriveBits']);
-  for (let numero = 0; numero < 1000; numero++) {
-    const resultado = await window.crypto.subtle.deriveBits({
-      name: 'PBKDF2',
-      hash: 'SHA-256',
-      iterations: 400,
-      salt: codificador.encode(String(numero)),
-    }, llave, 128);
-    const hex = Array.from(new Uint8Array(resultado), byte => byte.toString(16).padStart(2, '0')).join('');
-    if (hex === huella) return { id, numero };
-  }
-  throw new Error('No se pudo completar la verificación. Inténtalo de nuevo.');
-}
-
-export function useCaptcha(apiUrl) {
-  const [estado, setEstado] = useState('listo');
-  const pendiente = useRef(null);
-
-  function resolverCaptcha() {
-    if (!pendiente.current) {
-      setEstado('verificando');
-      pendiente.current = resolver(apiUrl).then(respuesta => {
-        setEstado('verificado');
-        return respuesta;
-      }).catch(error => {
-        pendiente.current = null;
-        setEstado('error');
-        throw error;
-      });
+  useEffect(() => {
+    if (!activo) return undefined;
+    const controller = new AbortController();
+    async function cargar() {
+      try {
+        const response = await fetch(apiUrl + '/api/auth/captcha/texto', {
+          cache: 'no-store', signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('No se pudo cargar el CAPTCHA. Genera un código nuevo.');
+        const nuevo = await response.json();
+        if (typeof nuevo.id !== 'string' || !/^[a-f0-9-]{36}$/i.test(nuevo.id)
+          || typeof nuevo.imagen !== 'string' || !nuevo.imagen.startsWith('data:image/svg+xml;base64,')) {
+          throw new Error('El CAPTCHA no se recibió correctamente. Genera un código nuevo.');
+        }
+        if (!controller.signal.aborted) {
+          setReto({ ...nuevo, audio: apiUrl + '/api/auth/captcha/texto/' + nuevo.id + '/audio' });
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) setError(error.message || 'No se pudo cargar el CAPTCHA.');
+      }
     }
-    return pendiente.current;
-  }
+    void cargar();
+    return () => controller.abort();
+  }, [apiUrl, activo, version]);
 
   function reiniciarCaptcha() {
-    pendiente.current = null;
-    setEstado('listo');
+    setReto(null);
+    setRespuesta('');
+    setError('');
+    pedirNuevo(value => value + 1);
   }
 
-  return { estado, resolverCaptcha, reiniciarCaptcha };
+  function resolverCaptcha() {
+    if (!reto) throw new Error('Genera un código de verificación antes de continuar.');
+    if (!/^\d{6}$/.test(respuesta)) throw new Error('Escribe los seis dígitos del CAPTCHA.');
+    return { id: reto.id, respuesta };
+  }
+
+  return { reto, respuesta, setRespuesta, error, resolverCaptcha, reiniciarCaptcha };
 }

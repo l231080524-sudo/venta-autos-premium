@@ -209,27 +209,28 @@ dialog[aria-label="Accesibilidad"] .dialog-heading { position: sticky; top: 0; z
 
 .region-react { display: contents; }
 
-.captcha-control {
-  display: inline-flex;
-  align-items: center;
-  gap: .65rem;
-  min-height: 44px;
-  padding: .6rem .85rem;
-  border: 1px solid currentColor;
-  border-radius: .5rem;
-  text-align: left;
-}
-
-.captcha-indicador {
+.captcha-contenido {
   display: grid;
-  place-items: center;
-  flex: none;
-  width: 1.25rem;
-  height: 1.25rem;
-  border: 1px solid currentColor;
-  border-radius: .2rem;
+  gap: .5rem;
 }
 
-.captcha-control[aria-pressed="true"] .captcha-indicador::after {
-  content: '✓';
+.captcha-contenido img {
+  max-width: 100%;
+  height: auto;
+  border-radius: .3rem;
+}
+
+.captcha-contenido audio {
+  width: min(100%, 18rem);
+  max-width: 100%;
+}
+
+.captcha-contenido input {
+  width: min(100%, 12rem);
+  padding: .55rem;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: .4rem;
+  letter-spacing: .2em;
 }

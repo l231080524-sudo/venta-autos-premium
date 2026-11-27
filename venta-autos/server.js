@@ -10,12 +10,12 @@ import { createChat } from './backend/chat.js';
 import { cents, requireValue, transaction, hashPassword, verifyPassword, sessionToken, sessionClaims } from './backend/core.js';
 import { AUTH_OTP_MAX_ATTEMPTS, AUTH_SESSION_IDLE_MS, AUTH_SESSION_MAX_MS, createAuthDelivery, createOtpChallenge, normalizePhone, otpMatches } from './backend/auth.js';
 import { registerTotpRoutes, verifyAuthenticator } from './backend/totp.js';
-import { crearCaptcha } from './backend/captcha.js';
 import { crearCaptchaTexto } from './backend/captchaTexto.js';
 
 const AUTH_FAILURE_LIMIT = 5;
 const AUTH_FAILURE_WINDOW_MS = 15 * 60 * 1000;
-const AUTH_LOCK_MS = 15 * 60 * 1000;
+const AUTH_LOCK_MS = 30_000;
+const AUTH_LOCK_MESSAGE = 'La cuenta está bloqueada temporalmente. Espera 30 segundos antes de intentarlo de nuevo.';
 
 function locked(user, now = Date.now()) {
   return Boolean(user?.auth_bloqueado_hasta && new Date(user.auth_bloqueado_hasta).getTime() > now);
@@ -24,7 +24,7 @@ function locked(user, now = Date.now()) {
 async function recordAuthFailure(db, user, now = Date.now()) {
   if (locked(user, now)) return true;
   const started = user.auth_ventana ? new Date(user.auth_ventana).getTime() : 0;
-  const inWindow = started > now - AUTH_FAILURE_WINDOW_MS;
+  const inWindow = !user.auth_bloqueado_hasta && started > now - AUTH_FAILURE_WINDOW_MS;
   const failures = inWindow ? Number(user.auth_fallos || 0) + 1 : 1;
   const windowStart = inWindow ? new Date(user.auth_ventana) : new Date(now);
   const blockedUntil = failures >= AUTH_FAILURE_LIMIT ? new Date(now + AUTH_LOCK_MS) : null;
@@ -52,7 +52,6 @@ async function makeSession(pool, user, secret, now = Date.now()) {
 dotenv.config();
 export function createApp({ pool, config = readConfig(), mp = createMercadoPago(config), authDelivery = createAuthDelivery(), captchaTexto = crearCaptchaTexto() }) {
   const app = express();
-  const captcha = crearCaptcha();
   app.disable('x-powered-by');
   app.use(cors({ origin: config.origins, methods: ['GET','POST','PUT','DELETE'], allowedHeaders: ['Content-Type','Authorization'], exposedHeaders: ['Content-Disposition'] }));
   app.use(express.json({ limit: '64kb' }));
@@ -103,7 +102,6 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
     if (req.authSession) await pool.query('UPDATE auth_sessions SET revoked_at=NOW() WHERE id=$1', [req.authSession.id]);
     res.json({ ok:true });
   });
-  app.get('/api/auth/captcha', limitCaptcha, (_req, res) => res.json(captcha.emitir()));
   app.get('/api/auth/captcha/texto', limitCaptcha, (_req, res) => res.json(captchaTexto.emitir()));
   app.get('/api/auth/captcha/texto/:id/audio', limitCaptcha, (req, res) => {
     res.type('audio/wav').send(captchaTexto.audio(req.params.id));
@@ -113,10 +111,9 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
     const {email,password,method='email'}=req.body;
     requireValue(typeof email==='string' && typeof password==='string' && password.length<=256,400,'Datos de acceso inválidos.');
     requireValue(['email','totp'].includes(method),400,'Selecciona un método de verificación válido.');
-    if (typeof req.body.captcha?.respuesta === 'string') captchaTexto.validar(req.body.captcha);
-    else captcha.validar(req.body.captcha);
+    captchaTexto.validar(req.body.captcha);
     const user=(await pool.query('SELECT * FROM usuarios WHERE lower(email)=lower($1)',[email.trim()])).rows[0];
-    if (user && locked(user)) requireValue(false,423,'La cuenta está bloqueada temporalmente. Espera 15 minutos antes de intentarlo de nuevo.');
+    if (user && locked(user)) requireValue(false,423,AUTH_LOCK_MESSAGE);
     const passwordValid = user && await verifyPassword(password,user.password_hash);
     if (!passwordValid) {
       if (user) {
@@ -124,7 +121,7 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
           const current=(await db.query('SELECT id,auth_fallos,auth_ventana,auth_bloqueado_hasta FROM usuarios WHERE id=$1 FOR UPDATE',[user.id])).rows[0];
           return recordAuthFailure(db,current);
         });
-        if (result) requireValue(false,423,'La cuenta se bloqueó por demasiados intentos. Espera 15 minutos.');
+        if (result) requireValue(false,423,AUTH_LOCK_MESSAGE);
       }
       requireValue(false,401,'Correo o contraseña incorrectos.');
     }
@@ -188,7 +185,7 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
       const user=(await db.query('SELECT id,nombre,email,rol FROM usuarios WHERE id=$1',[row.account_id])).rows[0];
       return { ok:true,user };
     });
-    if (!result.ok) requireValue(false,result.locked?423:401,result.locked?'La cuenta se bloqueó por demasiados intentos. Espera 15 minutos.'
+    if (!result.ok) requireValue(false,result.locked?423:401,result.locked?AUTH_LOCK_MESSAGE
       : result.usesAuthenticator ? 'El código no es válido o ya se usó. Espera el siguiente código de la app.'
         : 'El código no es válido o ya venció. Inicia la verificación de nuevo.');
     res.json({ usuario:await makeSession(pool,result.user,config.authSecret) });
@@ -201,7 +198,7 @@ export function createApp({ pool, config = readConfig(), mp = createMercadoPago(
     requireValue(row && !row.consumed_at && new Date(row.expires_at).getTime()>Date.now(),410,'El código venció. Inicia sesión para solicitar uno nuevo.');
     requireValue(row.channel!=='totp',400,'Usa el código actual de tu app autenticadora.');
     requireValue(row.channel==='email',410,'Inicia sesión para solicitar un código por correo.');
-    if (row.purpose==='login' && locked(row)) requireValue(false,423,'La cuenta está bloqueada temporalmente. Espera 15 minutos.');
+    if (row.purpose==='login' && locked(row)) requireValue(false,423,AUTH_LOCK_MESSAGE);
     requireValue(Date.now()-new Date(row.created_at).getTime()>=60000,429,'Espera un minuto antes de pedir otro código.');
     const user={id:row.account_id,email:row.email};
     res.json(await startChallenge(user,row.purpose,row.channel));

@@ -1,6 +1,14 @@
-<div data-vista="captcha-de-acceso">
-  <button type="button" class="captcha-control" data-enlace="resolver-captcha">
-    <span class="captcha-indicador" aria-hidden="true"></span>
-    <span role="status" data-contenido="texto-captcha">No soy un robot</span>
-  </button>
+<fieldset data-vista="captcha-de-acceso" class="captcha-contenido">
+  <legend>Verificación CAPTCHA</legend>
+  <template data-contenido="reto-captcha"></template>
+  <button type="button" data-enlace="nuevo-captcha">Generar otro código</button>
+</fieldset>
+
+<div data-vista="reto-captcha" class="captcha-contenido">
+  <img data-enlace="imagen-captcha" alt="Código de seguridad de seis dígitos. También está disponible en audio." width="236" height="64">
+  <audio data-enlace="audio-captcha" controls preload="none" aria-label="Escuchar el código de seguridad"></audio>
+  <label for="codigo-captcha">Escribe el código de la imagen o del audio</label>
+  <input id="codigo-captcha" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="off" required>
 </div>
+
+<p data-vista="estado-captcha" role="status" data-contenido="mensaje-captcha">Cargando código de seguridad…</p>

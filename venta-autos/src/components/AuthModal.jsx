@@ -17,7 +17,7 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
   const [codigo, setCodigo] = useState('');
   const [desafio, setDesafio] = useState(null);
   const [esperaReenvio, setEsperaReenvio] = useState(0);
-  const captcha = useCaptcha(API_URL);
+  const captcha = useCaptcha(API_URL, !esRegistro && paso === 'credenciales');
 
   useEffect(() => {
     if (paso !== 'codigo' || esperaReenvio <= 0) return undefined;
@@ -90,6 +90,7 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
   };
 
   const volver = () => {
+    captcha.reiniciarCaptcha();
     setPaso('credenciales');
     setDesafio(null);
     setCodigo('');
@@ -101,7 +102,8 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
   const usaAutenticador = desafio?.method === 'totp';
 
   return <VistaAuthModal {...{
-    setModalAuth, esRegistro, setEsRegistro, paso, error, setError, loading,
+    setModalAuth, esRegistro, paso, error, setError, loading,
+    setEsRegistro: nuevo => { captcha.reiniciarCaptcha(); setEsRegistro(nuevo); },
     nombre, setNombre, email, setEmail, password, setPassword, telefono,
     setTelefono, metodo, setMetodo, codigo, setCodigo, desafio, esperaReenvio,
     manejarEnvio, verificarCodigo, reenviarCodigo, volver, titulo,
