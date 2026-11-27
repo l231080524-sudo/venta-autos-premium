@@ -10,7 +10,6 @@ const cars = ['gasolina', 'hibrido', 'electrico', 'superdeportivo'].map((categor
 const user = { id: 999, nombre: 'Cliente de prueba', email: 'prueba@example.test', token: 'sesion-simulada-sin-valor-real' };
 
 test.beforeEach(async ({ page }) => {
-  // Every non-local request is intercepted, including any mutation, so tests never reach production.
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.pathname.startsWith('/api/')) {
@@ -32,6 +31,24 @@ async function audit(page) {
   const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag2aaa', 'wcag21aa', 'wcag22aa']).disableRules(['frame-tested']).options({ rules: { 'color-contrast-enhanced': { enabled: true } } }).analyze();
   expect(result.violations.map(v => ({ id: v.id, nodes: v.nodes.map(n => ({ target: n.target, summary: n.failureSummary })) }))).toEqual([]);
 }
+
+test('los botones de Inicio abren el catálogo desde la plantilla HTML', async ({ page }) => {
+  const names = [
+    'Ver Catálogo →', 'Ver Catálogo de Gasolina', 'Explorar Híbridos',
+    'Explorar eléctricos', 'Explorar superdeportivos',
+  ];
+  for (const [index, name] of names.entries()) {
+    await page.goto('/');
+    const button = page.getByRole('button', { name, exact: true });
+    if (index === 0) {
+      await button.focus();
+      await button.press('Enter');
+    } else {
+      await button.click();
+    }
+    await expect(page).toHaveURL(/\/catalogo$/);
+  }
+});
 
 test('activar teclado muestra controles inmediatamente y se conserva al recargar', async ({ page }) => {
   await page.goto('/');
@@ -403,7 +420,6 @@ for (const route of ['/', '/catalogo', '/carrito']) {
     })).toBeLessThan(5);
     await expect(page.locator('iframe[title="Ubicación AutoPremium CDMX"]')).toBeInViewport();
     expect(await page.locator('.site-header').evaluate(el => el.getBoundingClientRect().top)).toBe(0);
-    // Repeat the same hash after the user has manually scrolled away.
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
     await page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Dónde encontrarnos' }).click();
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(200);

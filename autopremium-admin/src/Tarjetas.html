@@ -1,0 +1,86 @@
+<div data-vista="div" class="admin-vehiculo group">
+  <div class="relative h-48 bg-black overflow-hidden">
+    <img class="admin-vehiculo-imagen" data-enlace="img-src">
+    <span class="admin-vehiculo-categoria"><template data-contenido="categoria"></template></span>
+    <template data-contenido="div"></template>
+  </div>
+  <div class="admin-vehiculo-campos">
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="admin-ficha-etiqueta">Marca</label>
+        <input type="text" class="admin-ficha-marca" data-enlace="input-value">
+      </div>
+      <div>
+        <label class="admin-ficha-etiqueta">Modelo</label>
+        <input type="text" class="admin-ficha-modelo" data-enlace="input-value-2">
+      </div>
+      <div>
+        <label class="admin-ficha-etiqueta">Precio (MXN)</label>
+        <input type="number" min="0.01" step="0.01" class="admin-ficha-precio" data-enlace="input-aria-label">
+      </div>
+      <div>
+        <label class="admin-ficha-etiqueta">Stock Disp.</label>
+        <input type="number" data-enlace="input-value-3">
+      </div>
+      <div class="col-span-2">
+        <label class="admin-ficha-etiqueta">Categoría Vehicular</label>
+        <select class="admin-ficha-categoria" data-enlace="select-value">
+          <option value="gasolina">Gasolina</option>
+          <option value="hibrido">Híbrido</option>
+          <option value="electrico">Eléctrico</option>
+          <option value="superdeportivo">Superdeportivo</option>
+        </select>
+      </div>
+    </div>
+    <div class="mt-auto pt-2 flex gap-3">
+      <template data-contenido="guardar"></template>
+      <button data-enlace="borrar">Borrar</button>
+    </div>
+  </div>
+</div>
+
+<div data-vista="div-2" class="admin-vehiculo-agotado">
+  <span class="admin-vehiculo-agotado-etiqueta">Sin Stock</span>
+</div>
+
+<button data-vista="guardar" class="admin-ficha-guardar" data-enlace="guardar">Guardar</button>
+
+<div data-vista="div-3" class="admin-usuario"><template data-contenido="div"></template></div>
+
+<template id="div-4">
+  <div class="w-full">
+    <div class="flex justify-between items-start w-full">
+      <p class="admin-usuario-nombre"><template data-contenido="nombre"></template></p>
+      <span data-enlace="span-class-name"><template data-contenido="get-role-name"></template></span>
+    </div>
+    <p class="admin-usuario-correo"><template data-contenido="email"></template></p>
+  </div>
+  <div class="flex gap-2 w-full mt-2"><template data-contenido="privilegios"></template></div>
+</template>
+
+<template id="privilegios">
+  <button class="admin-usuario-privilegios" data-enlace="privilegios">Privilegios</button>
+  <template data-contenido="revocar"></template>
+</template>
+
+<button data-vista="revocar" class="admin-usuario-revocar" data-enlace="revocar">Revocar</button>
+
+<div data-vista="div-5" class="w-full space-y-3">
+  <div>
+    <label class="admin-ficha-etiqueta">Nombre</label>
+    <input type="text" class="admin-usuario-editar-nombre" data-enlace="input-value">
+  </div>
+  <div>
+    <label class="admin-ficha-etiqueta">Nivel de Acceso</label>
+    <select class="admin-usuario-editar-rol" data-enlace="select-value">
+      <option value="superadmin">Super Admin (Control Total)</option>
+      <option value="admin">Administrador (Estándar)</option>
+      <option value="admin_restringido">Admin (Solo Degradar Clientes)</option>
+      <option value="cliente">Degradar a Cliente</option>
+    </select>
+  </div>
+  <div class="flex gap-2">
+    <button class="admin-usuario-guardar" data-enlace="guardar">Guardar</button>
+    <button class="admin-usuario-cancelar" data-enlace="cancelar">Cancelar</button>
+  </div>
+</div>

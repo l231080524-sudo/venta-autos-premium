@@ -1,0 +1,92 @@
+<section data-vista="estado-de-tu-pago" class="max-w-3xl mx-auto px-4 py-12">
+  <h1 class="heading-large font-bold mb-6">Estado de tu pago</h1>
+  <template data-contenido="inicia-sesion-con-la-cuenta-que-creo"></template>
+</section>
+
+<template id="inicia-sesion-con-la-cuenta-que-creo">
+  <p>Inicia sesión con la cuenta que creó la orden.</p>
+  <button class="primary-button mt-4" data-enlace="iniciar-sesion">Iniciar sesión</button>
+</template>
+
+<template id="p">
+  <template data-contenido="p"></template>
+  <template data-contenido="consultando-el-pago"></template>
+  <template data-contenido="h2"></template>
+  <div class="flex flex-wrap gap-4 mt-6">
+    <button data-enlace="actualizar-estado">Actualizar estado</button>
+    <template data-contenido="link"></template>
+  </div>
+</template>
+
+<p data-vista="p-2" role="alert" class="pago-aviso"><template data-contenido="error"></template> <template data-contenido="volver-a-iniciar-sesion"></template></p>
+
+<button data-vista="volver-a-iniciar-sesion" data-enlace="volver-a-iniciar-sesion">Volver a iniciar sesión</button>
+
+<p data-vista="consultando-el-pago" role="status">Consultando el pago…</p>
+
+<div data-vista="h2" class="pago-resumen">
+  <h2 aria-live="polite" aria-atomic="true" class="text-xl font-bold"><template data-contenido="estado"></template></h2>
+  <p><template data-contenido="ambiente"></template></p>
+  <p>Importe: <strong><template data-contenido="format-money"></template> MXN</strong></p>
+  <ul><template data-contenido="lista-items"></template></ul>
+  <p>Referencia: <template data-contenido="referencia"></template></p>
+  <template data-contenido="metodo"></template>
+  <template data-contenido="confirmacion"></template>
+  <template data-contenido="div"></template>
+  <template data-contenido="no-se-confirmo-el-pago"></template>
+  <template data-contenido="el-resultado-aun-no-esta-confirmado-vuelve"></template>
+  <template data-contenido="div-2"></template>
+  <template data-contenido="div-3"></template>
+  <template data-contenido="label"></template>
+  <template data-contenido="cancelar-orden"></template>
+</div>
+
+<li data-vista="contenido" data-enlace="contenido"><template data-contenido="marca"></template> <template data-contenido="modelo"></template> · <template data-contenido="format-money"></template> MXN</li>
+
+<p data-vista="metodo">Método: <template data-contenido="metodo-pago"></template></p>
+
+<p data-vista="confirmacion">Confirmación: <template data-contenido="to-locale-string"></template></p>
+
+<div data-vista="div">
+  <button class="primary-button" data-enlace="button-disabled"><template data-contenido="downloading"></template></button>
+  <p class="mt-2"><template data-contenido="ambiente"></template> Incluye comprador, vehículos, importes y datos del pago.</p>
+  <p role="status" aria-live="polite"><template data-contenido="download-status"></template></p>
+</div>
+
+<p data-vista="no-se-confirmo-el-pago">No se confirmó el pago. <template data-contenido="detalle-pago"></template><template data-contenido="ambiente"></template></p>
+
+<p data-vista="el-resultado-aun-no-esta-confirmado-vuelve">El resultado aún no está confirmado. Vuelve a consultar más tarde; no inicies otro cobro.</p>
+
+<div data-vista="div-2" class="border border-line rounded-xl p-4">
+  <p role="status"><template data-contenido="stopped"></template></p>
+  <p class="text-sm">Consultas automáticas: <template data-contenido="count"></template> de 6.</p>
+  <template data-contenido="pedir-ayuda-al-asesor-por-whats-app"></template>
+</div>
+
+<a data-vista="pedir-ayuda-al-asesor-por-whats-app" class="inline-flex min-h-11 items-center underline" target="_blank" rel="noopener noreferrer" data-enlace="pedir-ayuda-al-asesor-por-whats-app">Pedir ayuda al asesor por WhatsApp</a>
+
+<div data-vista="div-3">
+  <p>Falta recuperar el resultado del intento enviado. Este botón reutiliza exactamente la solicitud original; no inicia un segundo cobro. Antes de cancelar, hay que conocer su resultado.</p>
+  <button data-enlace="recuperar-resultado-del-intento">Recuperar resultado del intento</button>
+</div>
+
+<template id="label">
+  <template data-contenido="label"></template>
+  <div class="pago-datos">
+    <h3 class="font-bold text-xl">Método de pago</h3>
+    <button class="primary-button w-full" data-enlace="pagar-con-mercado-pago">Pagar con Mercado Pago ↗</button>
+    <p>Continúa en el checkout de Mercado Pago para elegir cómo pagar <template data-contenido="format-money"></template> MXN. Al regresar verificaremos el resultado.</p>
+    <p class="text-center font-bold">O paga aquí con tarjeta</p>
+    <template data-contenido="si-pagas-con-tarjeta-aqui-primero-cerraremos"></template>
+  </div>
+  <template data-contenido="mercado-pago-card"></template>
+</template>
+
+<label data-vista="label-2" class="flex gap-3 items-start">
+  <input type="checkbox" data-enlace="input-checked">
+  <span>Autorizo un único cobro real de <template data-contenido="format-money"></template> MXN por esta demostración y entiendo que no se entregará ningún vehículo.</span>
+</label>
+
+<p data-vista="si-pagas-con-tarjeta-aqui-primero-cerraremos">Si pagas con tarjeta aquí, primero cerraremos el checkout anterior de Mercado Pago. Si el pago ya se está procesando, esperaremos su resultado.</p>
+
+<button data-vista="cancelar-orden" data-enlace="cancelar-orden">Cancelar orden<template data-contenido="ambiente"></template></button>

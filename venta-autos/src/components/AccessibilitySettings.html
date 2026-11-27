@@ -1,0 +1,31 @@
+<div data-vista="div" class="accessibility-settings">
+  <div class="reading-controls">
+    <label for="theme-choice">Apariencia<select id="theme-choice" data-enlace="theme-choice"><option value="dark">Modo nocturno</option><option value="light">Modo claro</option></select></label>
+    <label for="text-choice">Tamaño del texto<select id="text-choice" data-enlace="text-choice"><template data-contenido="lista-elementos"></template></select></label>
+    <label class="accessibility-toggle"><input type="checkbox" data-enlace="input-checked"> Alto contraste</label>
+    <label class="accessibility-toggle"><input type="checkbox" data-enlace="input-checked-2"> Colores en escala de grises</label>
+    <label class="accessibility-toggle"><input type="checkbox" data-enlace="input-checked-3"> Navegación por teclado</label>
+    <template data-contenido="controles-activados-en-el-encabezado-pulsa-f6"></template>
+    <p class="accessibility-help">Usa Tab y Mayús + Tab para moverte, Enter para seleccionar y Escape para cerrar ventanas. Las opciones y estados también se indican con texto.</p>
+    <label class="accessibility-toggle"><input type="checkbox" data-enlace="input-checked-4"> Mostrar textos alternativos</label>
+    <template data-contenido="textos-alternativos-de-las-imagenes"></template>
+    <div>
+      <h3>Subtítulos</h3>
+      <p class="accessibility-help">Esta página no contiene audio ni video que requiera subtítulos.</p>
+    </div>
+    <button type="button" data-enlace="restablecer-accesibilidad">Restablecer accesibilidad</button>
+  </div>
+</div>
+
+<option data-vista="contenido" data-enlace="contenido"><template data-contenido="value"></template> %</option>
+
+<p data-vista="controles-activados-en-el-encabezado-pulsa-f6" class="accessibility-help" role="status">Controles activados en el encabezado. Pulsa F6 para acceder a ellos.</p>
+
+<section data-vista="textos-alternativos-de-las-imagenes" aria-label="Textos alternativos de las imágenes">
+  <ul class="accessibility-image-list"><template data-contenido="lista-images"></template></ul>
+  <template data-contenido="no-hay-imagenes-informativas-en-esta-vista"></template>
+</section>
+
+<li data-vista="li" data-enlace="li-key"><template data-contenido="text"></template></li>
+
+<p data-vista="no-hay-imagenes-informativas-en-esta-vista">No hay imágenes informativas en esta vista.</p>

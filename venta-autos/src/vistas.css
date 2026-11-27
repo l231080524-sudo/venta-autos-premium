@@ -1,0 +1,533 @@
+@layer components {
+  .portada {
+    @apply w-full relative;
+  }
+
+  .hero {
+    @apply relative min-h-[36rem] flex flex-col justify-center items-start px-8 md:px-24 bg-surface overflow-hidden pt-20;
+  }
+
+  .hero-background {
+    @apply absolute inset-0 z-0;
+  }
+
+  .home-hero-image {
+    @apply w-full h-full object-cover opacity-40;
+  }
+
+  .hero-background-layer {
+    @apply absolute inset-0;
+  }
+
+  .hero-copy {
+    @apply relative z-10 max-w-3xl p-6 rounded-2xl;
+  }
+
+  .hero-eyebrow {
+    @apply text-content font-bold tracking-normal text-sm uppercase mb-4 mt-10;
+  }
+
+  .hero-title {
+    @apply heading-large font-black text-content leading-tight mb-6;
+  }
+
+  .hero-summary {
+    @apply text-content text-base md:text-xl font-normal mb-10 max-w-xl leading-relaxed;
+  }
+
+  .hero-button {
+    @apply bg-panel hover:bg-panel text-content px-8 py-4 rounded-full font-bold flex items-center gap-3;
+  }
+
+  .experience-section {
+    @apply py-24 px-8 md:px-24 bg-surface text-content;
+  }
+
+  .experience-grid {
+    @apply max-w-7xl min-w-0 mx-auto flex flex-col md:flex-row gap-16;
+  }
+
+  .experience-info {
+    @apply md:w-1/3;
+  }
+
+  .experience-eyebrow {
+    @apply text-content font-bold uppercase tracking-normal text-sm mb-4;
+  }
+
+  .experience-title {
+    @apply heading-large font-black mb-6 leading-tight;
+  }
+
+  .showcase-description {
+    @apply text-muted leading-relaxed mb-8;
+  }
+
+  .stats-row {
+    @apply flex gap-8;
+  }
+
+  .stat-label {
+    @apply text-sm uppercase font-bold text-muted mt-1;
+  }
+
+  .bento-grid {
+    @apply md:w-2/3 grid grid-cols-1 md:grid-cols-2 gap-6;
+  }
+
+  .bento-card {
+    @apply p-8 bg-panel rounded-2xl border border-line shadow-sm;
+  }
+
+  .bento-icon {
+    @apply w-12 h-12 bg-panel text-content flex items-center justify-center rounded-xl mb-6 text-xl font-bold;
+  }
+
+  .bento-title {
+    @apply text-xl font-bold mb-3;
+  }
+
+  .bento-text {
+    @apply text-muted text-sm leading-relaxed;
+  }
+
+  .bento-wide {
+    @apply p-8 bg-panel text-content rounded-2xl border border-line shadow-lg md:col-span-2 flex items-center gap-6;
+  }
+
+  .bento-wide-icon {
+    @apply w-16 h-16 bg-panel flex-shrink-0 flex items-center justify-center rounded-full text-2xl;
+  }
+
+  .combustion-section {
+    @apply py-24 px-8 md:px-24 bg-surface text-muted border-t border-line;
+  }
+
+  .showcase-grid {
+    @apply max-w-7xl min-w-0 mx-auto flex flex-col lg:flex-row items-center gap-16;
+  }
+
+  .showcase-text {
+    @apply lg:w-1/2;
+  }
+
+  .showcase-title {
+    @apply heading-large font-black mb-4;
+  }
+
+  .showcase-price {
+    @apply text-xl font-bold mb-8;
+  }
+
+  .feature-list {
+    @apply space-y-6 mb-10;
+  }
+
+  .combustion-button {
+    @apply bg-panel hover:bg-surface text-content px-8 py-4 rounded-xl font-bold w-full md:w-auto;
+  }
+
+  .combustion-media {
+    @apply lg:w-1/2 h-64 md:h-96 w-full bg-panel rounded-3xl overflow-hidden relative shadow-2xl;
+  }
+
+  .showcase-image {
+    @apply w-full h-full object-cover;
+  }
+
+  .media-badge {
+    @apply absolute top-4 right-4 bg-surface text-content px-4 py-1 rounded-full text-sm font-bold tracking-normal backdrop-blur-sm;
+  }
+
+  .hybrid-section {
+    @apply py-24 px-8 md:px-24 bg-panel text-content border-t-4 border-line;
+  }
+
+  .showcase-grid-reversed {
+    @apply max-w-7xl min-w-0 mx-auto flex flex-col lg:flex-row-reverse items-center gap-16;
+  }
+
+  .hybrid-subtitle {
+    @apply text-content text-lg mb-8 font-normal;
+  }
+
+  .hybrid-button {
+    @apply border-2 border-line text-content hover:bg-panel hover:text-content px-8 py-3 rounded-full font-bold w-full md:w-auto;
+  }
+
+  .hybrid-media {
+    @apply lg:w-1/2 h-64 md:h-96 w-full bg-panel rounded-3xl overflow-hidden relative;
+  }
+
+  .electric-section {
+    @apply py-24 px-8 md:px-24 bg-surface text-content relative;
+  }
+
+  .electric-title {
+    @apply heading-large font-black mb-4 text-content;
+  }
+
+  .electric-subtitle {
+    @apply text-muted text-lg mb-8 font-normal;
+  }
+
+  .showcase-specs {
+    @apply space-y-4 mb-8 text-content;
+  }
+
+  .showcase-spec {
+    @apply flex items-center gap-3;
+  }
+
+  .electric-button {
+    @apply bg-surface text-content px-8 py-3 rounded-sm font-bold uppercase tracking-normal hover:bg-surface w-full md:w-auto;
+  }
+
+  .electric-media {
+    @apply lg:w-1/2 h-64 md:h-96 w-full rounded-3xl overflow-hidden relative;
+  }
+
+  .electric-image {
+    @apply w-full h-full object-cover group-hover:scale-105;
+  }
+
+  .performance-section {
+    @apply py-24 px-8 md:px-24 bg-surface text-content border-t-2 border-line relative overflow-hidden;
+  }
+
+  .performance-glow {
+    @apply absolute top-0 right-0 w-96 h-96 bg-panel blur-[100px] pointer-events-none;
+  }
+
+  .performance-grid {
+    @apply max-w-7xl min-w-0 mx-auto flex flex-col lg:flex-row-reverse items-center gap-16 relative z-10;
+  }
+
+  .performance-title {
+    @apply heading-large font-black mb-4 text-content uppercase tracking-tighter italic;
+  }
+
+  .performance-rule {
+    @apply w-24 h-2 bg-panel mb-8;
+  }
+
+  .performance-button {
+    @apply bg-panel hover:bg-panel text-content border border-line px-10 py-4 rounded font-black uppercase tracking-normal w-full md:w-auto;
+  }
+
+  .performance-media {
+    @apply lg:w-1/2 h-64 md:h-96 w-full bg-surface rounded-xl border border-line overflow-hidden relative;
+  }
+
+  .performance-image {
+    @apply w-full h-full object-cover grayscale-[20%] group-hover:grayscale-0 group-hover:scale-105;
+  }
+
+  .showroom-section {
+    @apply py-16 px-8 md:px-24 bg-surface border-t border-line text-content print:hidden;
+  }
+
+  .showroom-heading {
+    @apply max-w-7xl mx-auto mb-8;
+  }
+
+  .showroom-title {
+    @apply text-3xl heading-large font-black mb-2;
+  }
+
+  .showroom-eyebrow {
+    @apply text-content font-bold uppercase tracking-normal text-sm;
+  }
+
+  .showroom-grid {
+    @apply max-w-7xl min-w-0 mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 items-start;
+  }
+
+  .showroom-map {
+    @apply w-full bg-panel rounded-2xl border border-line overflow-hidden shadow-2xl relative;
+  }
+
+  .showroom-frame {
+    @apply w-full h-full border-0 filter;
+  }
+
+  .showroom-sidebar {
+    @apply space-y-8;
+  }
+
+  .showroom-details {
+    @apply bg-panel p-6 md:p-8 rounded-2xl border border-line space-y-6;
+  }
+
+  .showroom-detail-title {
+    @apply text-sm text-muted uppercase tracking-normal font-bold mb-3 flex items-center gap-2;
+  }
+
+  .showroom-address {
+    @apply text-lg text-content;
+  }
+
+  .showroom-rule {
+    @apply h-px w-full bg-panel;
+  }
+
+  .showroom-schedule {
+    @apply space-y-3 text-content;
+  }
+
+  .schedule-row {
+    @apply flex flex-wrap gap-3 justify-between items-center;
+  }
+
+  .schedule-time {
+    @apply font-ui bg-surface px-3 py-1 rounded text-sm;
+  }
+
+  .catalogo {
+    @apply min-h-screen bg-surface text-content flex flex-col relative;
+  }
+
+  .catalogo-hero {
+    @apply relative min-h-[20rem] py-12 flex flex-col justify-center items-center text-center px-4 overflow-hidden pt-12;
+  }
+
+  .catalogo-fondo {
+    @apply absolute inset-0 bg-[url('https://images.unsplash.com/photo-1603584173870-7f23fdae1b7a?auto=format&fit=crop&q=80&w=1920')] bg-cover bg-center opacity-10 mix-blend-screen pointer-events-none;
+  }
+
+  .catalogo-intro {
+    @apply text-muted font-bold uppercase tracking-normal text-sm md:text-sm mb-3;
+  }
+
+  .catalogo-titulo {
+    @apply heading-large font-black tracking-normal text-content;
+  }
+
+  .catalogo-separador {
+    @apply w-16 h-1 bg-panel mt-5 rounded-full opacity-50;
+  }
+
+  .filtros-catalogo {
+    @apply relative w-full max-w-[1400px] mx-auto px-4 md:px-8 mb-8;
+  }
+
+  .filtros-panel {
+    @apply bg-surface backdrop-blur-xl p-4 rounded-2xl border border-line flex flex-col xl:flex-row items-center justify-between gap-6;
+  }
+
+  .filtro-categoria {
+    @apply px-4 py-3 md:py-2 text-sm uppercase tracking-normal font-bold rounded-lg text-center border;
+  }
+
+  .filtro-precio {
+    @apply w-full xl:w-96 xl:shrink-0 min-w-0;
+  }
+
+  .filtro-precio-etiqueta {
+    @apply flex flex-wrap gap-x-4 gap-y-1 justify-between items-center mb-2;
+  }
+
+  .filtro-precio-monto {
+    @apply text-sm md:text-sm font-ui font-bold text-content;
+  }
+
+  .filtro-precio-control {
+    @apply w-full accent-zinc-400 bg-panel rounded-lg h-8 cursor-pointer;
+  }
+
+  .catalogo-cargando {
+    @apply flex flex-col justify-center items-center py-32 space-y-4;
+  }
+
+  .catalogo-indicador {
+    @apply w-12 h-12 border-4 border-line border-t-transparent rounded-full animate-spin;
+  }
+
+  .catalogo-cargando-texto {
+    @apply text-muted text-sm tracking-normal uppercase font-bold;
+  }
+
+  .catalogo-error {
+    @apply text-center py-24 px-6 mx-auto;
+  }
+
+  .catalogo-error-titulo {
+    @apply text-lg font-bold text-content mt-4 mb-2;
+  }
+
+  .coleccion-gasolina {
+    @apply py-24 px-6 md:px-12 text-content;
+  }
+
+  .coleccion-intro-muted {
+    @apply text-sm uppercase font-extrabold tracking-normal text-muted;
+  }
+
+  .coleccion-titulo {
+    @apply heading-large font-ui font-black mt-2 text-content;
+  }
+
+  .coleccion-separador {
+    @apply w-20 h-1 bg-panel mt-4;
+  }
+
+  .coleccion-seccion {
+    @apply py-24 px-6 md:px-12 border-t border-line;
+  }
+
+  .coleccion-intro {
+    @apply text-sm uppercase font-extrabold tracking-normal text-content;
+  }
+
+  .coleccion-superdeportivos {
+    @apply py-24 px-6 md:px-12 bg-surface border-t border-line;
+  }
+
+  .coleccion-intro-pista {
+    @apply text-sm uppercase font-extrabold tracking-normal text-content italic;
+  }
+
+  .coleccion-titulo-pista {
+    @apply heading-large font-extrabold uppercase mt-2 tracking-tight text-content;
+  }
+
+  .catalog-results-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-10;
+  }
+
+  .carrito-pagina {
+    @apply min-h-screen bg-surface text-content px-4 md:px-12 py-12;
+  }
+
+  .carrito-contenido {
+    @apply max-w-7xl mx-auto;
+  }
+
+  .carrito-titulo {
+    @apply heading-large font-bold mb-6;
+  }
+
+  .carrito-aviso {
+    @apply bg-panel border border-line rounded-lg p-4 mb-4;
+  }
+
+  .carrito-pestanas {
+    @apply flex flex-wrap gap-3 mb-6;
+  }
+
+  .carrito-modo {
+    @apply bg-panel border border-line p-4 rounded-lg mb-6;
+  }
+
+  .carrito-lista {
+    @apply grid gap-4;
+  }
+
+  .carrito-resumen {
+    @apply bg-panel border border-line rounded-xl p-6 self-start;
+  }
+
+  .carrito-total {
+    @apply text-xl font-bold my-4;
+  }
+
+  .carrito-vehiculo {
+    @apply bg-panel border border-line rounded-xl p-4 flex flex-wrap gap-4 items-center;
+  }
+
+  .carrito-imagen {
+    @apply w-32 rounded-lg;
+  }
+
+  .carrito-vehiculo-info {
+    @apply flex-1 min-w-0;
+  }
+
+  .carrito-historial {
+    @apply grid gap-4 md:grid-cols-2;
+  }
+
+  .carrito-pago {
+    @apply bg-panel border border-line p-6 rounded-xl;
+  }
+
+  .acceso-contenido {
+    @apply p-8 pb-6;
+  }
+
+  .acceso-titulo {
+    @apply text-2xl font-black text-content tracking-normal uppercase mb-1;
+  }
+
+  .acceso-instrucciones {
+    @apply text-muted text-sm mb-6;
+  }
+
+  .acceso-error {
+    @apply bg-panel border border-line text-content text-sm p-3 rounded mb-6 font-bold;
+  }
+
+  .acceso-formulario {
+    @apply space-y-4;
+  }
+
+  .acceso-etiqueta {
+    @apply block text-sm text-muted font-bold mb-1.5;
+  }
+
+  .acceso-campo {
+    @apply w-full bg-surface border border-line rounded p-3 text-sm text-content;
+  }
+
+  .acceso-continuar {
+    @apply w-full text-content font-bold py-4 rounded transition mt-2 text-sm bg-panel hover:bg-panel disabled:cursor-wait;
+  }
+
+  .acceso-registro {
+    @apply text-center pt-4 border-t border-line text-sm;
+  }
+
+  .acceso-cambiar-modo {
+    @apply text-content font-bold uppercase tracking-normal;
+  }
+
+  .acceso-metodos {
+    @apply space-y-2;
+  }
+
+  .acceso-leyenda {
+    @apply block text-sm text-muted font-bold mb-2;
+  }
+
+  .acceso-metodo {
+    @apply flex items-center gap-2 text-sm text-content;
+  }
+
+  .acceso-codigo {
+    @apply w-full bg-surface border border-line rounded p-3 text-lg tracking-[0.35em] text-content;
+  }
+
+  .acceso-verificar {
+    @apply w-full text-content font-bold py-4 rounded transition text-sm bg-panel hover:bg-panel disabled:cursor-not-allowed;
+  }
+
+  .acceso-volver {
+    @apply w-full text-sm underline text-muted;
+  }
+
+  .acceso-reenviar {
+    @apply w-full border border-line rounded p-3 text-sm text-content disabled:opacity-60;
+  }
+
+  .pago-aviso {
+    @apply border border-line p-4 rounded-lg mb-4;
+  }
+
+  .pago-resumen {
+    @apply bg-panel border border-line p-6 rounded-xl space-y-4;
+  }
+
+  .pago-datos {
+    @apply border border-line rounded-xl p-4 space-y-3;
+  }
+}

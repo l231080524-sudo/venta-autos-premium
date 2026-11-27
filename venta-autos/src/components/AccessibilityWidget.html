@@ -1,0 +1,47 @@
+<template id="acceso-a-accesibilidad">
+  <aside class="accessibility-widget print:hidden" aria-label="Acceso a accesibilidad">
+    <template data-contenido="div"></template>
+    <template data-contenido="volver-arriba"></template>
+    <button id="accessibility-launcher" type="button" class="accessibility-launcher" aria-label="Accesibilidad" title="Accesibilidad" aria-haspopup="dialog" data-enlace="accessibility-launcher">
+      <svg viewBox="0 0 48 48" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+        <circle cx="24" cy="24" r="19"></circle>
+        <circle cx="24" cy="13" r="2" fill="currentColor" stroke="none"></circle>
+        <path d="M13 20q11 4 22 0M24 19v10m0-1-6 12m6-12 6 12" stroke-linecap="round"></path>
+      </svg>
+    </button>
+  </aside>
+  <template data-contenido="accessible-dialog"></template>
+</template>
+
+<div data-vista="div" class="voice-indicator">
+  <p role="status"><template data-contenido="status"></template></p>
+  <button type="button" data-enlace="button-on-click"><template data-contenido="active"></template></button>
+</div>
+
+<button data-vista="volver-arriba" type="button" class="accessibility-back-top" aria-label="Volver arriba" title="Volver arriba (Ctrl + Inicio)" aria-keyshortcuts="Control+Home" data-enlace="volver-arriba">↑</button>
+
+<div data-vista="voice-title" class="accessibility-panel-content">
+  <template data-contenido="accessibility-settings"></template>
+  <section class="voice-settings" aria-labelledby="voice-title">
+    <h3 id="voice-title">Navegación por voz</h3>
+    <template data-contenido="activa-el-microfono-y-permite-su-uso"></template>
+    <ul>
+      <li>«Inicio», «catálogo» o «carrito»</li>
+      <li>«Iniciar sesión» o «mi cuenta»</li>
+      <li>«Subir», «bajar» o «volver arriba»</li>
+      <li>«Más información» para abrir una ficha</li>
+      <li>«Controles» para volver a la navegación</li>
+      <li>«Cerrar» para cerrar una ventana</li>
+      <li>«Detener voz» para apagar el micrófono</li>
+    </ul>
+    <p class="accessibility-help">El navegador puede procesar la voz en línea. El micrófono solo se activa al pulsar Activar voz y se apaga al cambiar de pestaña. Los comandos no realizan cobros.</p>
+  </section>
+</div>
+
+<template id="activa-el-microfono-y-permite-su-uso">
+  <p>Activa el micrófono y permite su uso en el navegador. Di el nombre del apartado o una orden de la lista.</p>
+  <button type="button" class="primary-button" data-enlace="button-on-click"><template data-contenido="active"></template></button>
+  <p role="status"><template data-contenido="status"></template></p>
+</template>
+
+<p data-vista="este-navegador-no-admite-reconocimiento-de-voz">Este navegador no admite reconocimiento de voz. Prueba en un navegador compatible, como Chrome, o usa el teclado.</p>

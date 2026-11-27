@@ -1,0 +1,72 @@
+<aside data-vista="asistente-de-auto-premium" aria-label="Asistente de AutoPremium" data-enlace="asistente-de-auto-premium">
+  <template data-contenido="chat-title"></template>
+  <div class="chat-launcher">
+    <template data-contenido="necesitas-ayuda"></template>
+    <button class="chat-toggle" type="button" data-enlace="button-ref"><template data-contenido="support-icon"></template></button>
+  </div>
+</aside>
+
+<section data-vista="chat-title" class="chat-panel" aria-labelledby="chat-title" data-enlace="chat-title">
+  <header>
+    <h2 id="chat-title">Asistente AutoPremium</h2>
+    <button type="button" aria-label="Cerrar chat" data-enlace="cerrar-chat">×</button>
+  </header>
+  <p class="chat-notice">Asistente con IA. No compartas datos personales, tarjetas ni contraseñas. Tus preguntas se envían a Google Gemini.</p>
+  <div class="chat-messages" role="log" aria-live="polite" aria-relevant="additions" data-enlace="div-ref">
+    <p class="chat-bubble">Hola, ¿en qué puedo ayudarte? Elige un problema frecuente o escribe tu pregunta. Esta demostración tiene cobros reales, sin entrega de vehículos.</p>
+    <div class="chat-topics" role="group" aria-label="Problemas frecuentes"><template data-contenido="lista-help-topics"></template></div>
+    <template data-contenido="lista-messages"></template>
+    <template data-contenido="consultando"></template>
+    <span data-enlace="span-ref"></span>
+  </div>
+  <template data-contenido="la-ia-no-esta-disponible-por-ahora"></template>
+  <template data-contenido="p"></template>
+  <div class="chat-support">
+    <template data-contenido="advisor-link"></template>
+    <p>Abre WhatsApp y envía tu mensaje. No compartimos automáticamente esta conversación.</p>
+  </div>
+  <form data-enlace="form-on-submit">
+    <label for="chat-message">Tu pregunta</label>
+    <textarea id="chat-message" maxlength="1000" rows="2" placeholder="Cuéntame qué problema tienes…" data-enlace="chat-message"></textarea>
+    <div class="chat-actions">
+      <button type="button" data-enlace="nueva-conversacion">Nueva conversación</button>
+      <button type="submit" data-enlace="enviar">Enviar</button>
+    </div>
+  </form>
+</section>
+
+<button data-vista="button" type="button" data-enlace="button-key"><template data-contenido="label"></template></button>
+
+<div data-vista="div" data-enlace="div-key">
+  <strong><template data-contenido="role"></template></strong>
+  <p><template data-contenido="text"></template></p>
+  <template data-contenido="un-asesor-puede-ayudarte-a-revisar-tu"></template>
+  <template data-contenido="contenido"></template>
+</div>
+
+<p data-vista="un-asesor-puede-ayudarte-a-revisar-tu">Un asesor puede ayudarte a revisar tu caso. Usa el botón de WhatsApp al final del chat.</p>
+
+<div data-vista="div-2" class="chat-vehicle" data-enlace="div-key">
+  <strong><template data-contenido="nombre"></template></strong>
+  <p><template data-contenido="anio"></template> · <template data-contenido="format-money"></template> MXN</p>
+  <template data-contenido="link"></template>
+</div>
+
+<p data-vista="consultando" role="status">Consultando…</p>
+
+<p data-vista="la-ia-no-esta-disponible-por-ahora" class="chat-status" role="status">La IA no está disponible por ahora. Puedes usar las opciones de ayuda o <template data-contenido="link"></template>.</p>
+
+<p data-vista="p" class="chat-error" role="alert"><template data-contenido="error"></template> <template data-contenido="link"></template></p>
+
+<span data-vista="necesitas-ayuda" class="chat-greeting" aria-hidden="true">¿Necesitas ayuda?</span>
+
+<svg data-vista="svg" viewBox="0 0 48 48" width="34" height="34" fill="none" aria-hidden="true">
+  <circle cx="24" cy="19" r="7" fill="currentColor"></circle>
+  <path d="M12 39c0-7 5-12 12-12s12 5 12 12H12Z" fill="currentColor"></path>
+  <path d="M10 23v-5a14 14 0 0 1 28 0v5M37 28v3c0 3-3 5-8 5" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
+  <rect x="7" y="20" width="6" height="10" rx="3" fill="currentColor"></rect>
+  <rect x="35" y="20" width="6" height="10" rx="3" fill="currentColor"></rect>
+  <rect x="25" y="34" width="7" height="4" rx="2" fill="#163f69" stroke="currentColor" stroke-width="2"></rect>
+</svg>
+
+<a data-vista="contactar-asesor-por-whats-app" class="chat-advisor" target="_blank" rel="noopener noreferrer" data-enlace="contactar-asesor-por-whats-app">Contactar asesor por WhatsApp</a>

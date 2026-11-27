@@ -1,0 +1,63 @@
+<div data-vista="acceso-administrativo" class="admin-acceso">
+  <div class="admin-acceso-fondo">
+    <div class="admin-acceso-luz"></div>
+  </div>
+  <div class="admin-acceso-tarjeta">
+    <div class="admin-acceso-intro">
+      <span class="admin-acceso-distintivo">
+        Software Administrativo
+      </span>
+      <h1 class="admin-acceso-titulo">Staff <span class="text-red-600">Access</span></h1>
+      <p class="admin-acceso-subtitulo">Sistema Privado de Gestión AutoPremium</p>
+    </div>
+    <template data-contenido="aviso-de-error"></template>
+    <form class="admin-acceso-formulario" data-enlace="formulario-de-acceso">
+      <template data-contenido="campos-de-acceso"></template>
+      <button type="submit" data-enlace="continuar" data-contenido="texto-del-boton">Continuar con verificación</button>
+    </form>
+  </div>
+</div>
+
+<div data-vista="error-de-acceso" role="alert" class="admin-acceso-error" data-contenido="mensaje-de-error"></div>
+
+<div data-vista="verificar-codigo" class="admin-acceso-verificacion">
+  <p role="status">Enviamos un código a <template data-contenido="destino-del-codigo"></template>.</p>
+  <label for="admin-otp">Código de seis dígitos</label>
+  <input
+    id="admin-otp"
+    required
+    autocomplete="one-time-code"
+    inputmode="numeric"
+    pattern="[0-9]{6}"
+    class="admin-acceso-codigo"
+
+  >
+  <button type="button" class="underline" data-enlace="volver-al-acceso">Volver al acceso</button>
+</div>
+
+<template id="correo-y-contrasena">
+  <div>
+    <label for="admin-login-email" class="admin-acceso-etiqueta">Correo Corporativo</label>
+    <input
+      id="admin-login-email"
+      autocomplete="username"
+      required
+      type="email"
+      placeholder="admin@autopremium.com"
+      class="admin-acceso-campo"
+
+    >
+  </div>
+  <div>
+    <label for="admin-login-password" class="admin-acceso-etiqueta">Contraseña de Seguridad</label>
+    <input
+      id="admin-login-password"
+      autocomplete="current-password"
+      required
+      type="password"
+      placeholder="••••••••"
+      class="admin-acceso-campo"
+
+    >
+  </div>
+</template>

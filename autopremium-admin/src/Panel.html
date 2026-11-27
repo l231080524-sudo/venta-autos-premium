@@ -1,0 +1,180 @@
+<div data-vista="panel-administrativo" class="panel-admin">
+  <template data-contenido="encabezado-panel"></template>
+  <main class="panel-contenido">
+    <template data-contenido="div"></template>
+    <div class="panel-pestanas"><template data-contenido="lista-pestanas-renderizadas"></template></div>
+    <template data-contenido="sincronizando-base-de-datos-postgre-sql"></template>
+  </main>
+</div>
+
+<div data-vista="notificacion" data-enlace="div-class-name"><template data-contenido="mensaje"></template></div>
+
+<button data-vista="pestana" data-enlace="button-key"><template data-contenido="etiqueta"></template></button>
+
+<div data-vista="sincronizando-base-de-datos-postgre-sql" class="panel-cargando">Sincronizando Base de Datos PostgreSQL...</div>
+
+<template id="apartados-del-panel">
+  <template data-contenido="desempeno-operativo"></template>
+  <template data-contenido="dar-de-alta-nueva-unidad"></template>
+  <template data-contenido="base-de-clientes-premium"></template>
+  <template data-contenido="registrar-nuevo-admin"></template>
+</template>
+
+<div data-vista="resumen-de-operaciones" class="space-y-8 animate-fade-in">
+  <div>
+    <h2 class="panel-titulo">Desempeño Operativo</h2>
+    <p class="text-zinc-500 text-sm">Vista general de las ventas e inventario actual en tiempo real.</p>
+  </div>
+  <div class="panel-metricas">
+    <div class="metrica-ingresos">
+      <p class="etiqueta-ingresos">Ingresos Brutos Estimados</p>
+      <p class="text-3xl font-black font-mono text-white">$<template data-contenido="to-locale-string"></template></p>
+    </div>
+    <div class="metrica-entregas">
+      <p class="etiqueta-entregas">Unidades Entregadas</p>
+      <p class="text-3xl font-black font-mono text-white"><template data-contenido="unidades-vendidas"></template> <span class="text-sm font-sans font-light text-zinc-400">Autos</span></p>
+    </div>
+    <div class="metrica-valor">
+      <p class="etiqueta-valor">Valor de Catálogo Físico</p>
+      <p class="text-3xl font-black font-mono text-white">$<template data-contenido="to-locale-string-2"></template></p>
+    </div>
+    <div class="metrica-stock">
+      <p class="etiqueta-stock">Stock General Disponible</p>
+      <p class="text-3xl font-black font-mono text-white"><template data-contenido="total-stock"></template> <span class="text-sm font-sans font-light text-zinc-400">Unidades</span></p>
+    </div>
+  </div>
+</div>
+
+<div data-vista="dar-de-alta-nueva-unidad" class="space-y-12 animate-fade-in">
+  <div class="inventario-formulario">
+    <h3 class="panel-titulo-formulario">Dar de Alta Nueva Unidad</h3>
+    <form class="space-y-6" data-enlace="form-on-submit">
+      <div class="inventario-campos">
+        <div>
+          <label class="admin-etiqueta">Marca *</label>
+          <input required type="text" class="panel-campo" data-enlace="input-value">
+        </div>
+        <div>
+          <label class="admin-etiqueta">Modelo *</label>
+          <input required type="text" class="panel-campo" data-enlace="input-value-2">
+        </div>
+        <div>
+          <label class="admin-etiqueta">Año *</label>
+          <input required type="number" class="panel-campo-numerico" data-enlace="input-value-3">
+        </div>
+        <div>
+          <label class="admin-etiqueta">Precio MXN *</label>
+          <input required type="number" class="panel-campo-numerico" data-enlace="input-value-4">
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div>
+          <label class="admin-etiqueta">Categoría Vehicular *</label>
+          <select class="panel-categoria" data-enlace="select-value">
+            <option value="gasolina">Gasolina</option>
+            <option value="hibrido">Híbrido</option>
+            <option value="electrico">Eléctrico</option>
+            <option value="superdeportivo">Superdeportivo</option>
+          </select>
+        </div>
+        <div class="md:col-span-2">
+          <label class="admin-etiqueta">URL Imagen</label>
+          <input type="url" class="panel-campo" data-enlace="input-value-5">
+        </div>
+      </div>
+      <div>
+        <label class="admin-etiqueta">Descripción</label>
+        <textarea rows="3" class="panel-campo" data-enlace="textarea-value"></textarea>
+      </div>
+      <div class="border-t border-zinc-900 pt-4">
+        <div class="flex justify-between items-center mb-4">
+          <label class="panel-spec-etiqueta">Especificaciones Dinámicas</label>
+          <button type="button" class="panel-agregar-spec" data-enlace="spec">+ Spec</button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><template data-contenido="lista-specs-input"></template></div>
+      </div>
+      <button type="submit" class="panel-publicar">Inyectar Unidad</button>
+    </form>
+  </div>
+  <div class="space-y-4">
+    <div class="inventario-encabezado">
+      <h3 class="font-black text-lg uppercase tracking-tight">Showroom (<template data-contenido="length"></template>)</h3>
+      <input type="text" placeholder="Buscar..." class="inventario-busqueda" data-enlace="buscar">
+    </div>
+    <div class="inventario-lista"><template data-contenido="lista-vehiculos-filtrados"></template></div>
+  </div>
+</div>
+
+<div data-vista="especificacion-vehiculo" class="inventario-spec" data-enlace="div-key">
+  <input type="text" placeholder="Clave (Ej: Motor)" class="inventario-spec-campo" data-enlace="clave-ej-motor">
+  <input type="text" placeholder="Valor (Ej: V8)" class="inventario-spec-campo" data-enlace="valor-ej-v8">
+  <button type="button" class="text-red-500 font-bold px-2 hover:text-red-400" data-enlace="contenido">✕</button>
+</div>
+
+<div data-vista="base-de-clientes-premium" class="clientes-panel animate-fade-in">
+  <h3 class="panel-subtitulo">Base de Clientes Premium</h3>
+  <table class="w-full text-left border-collapse text-xs">
+    <thead>
+      <tr class="clientes-encabezado">
+        <th class="py-4 px-4">ID</th>
+        <th class="py-4 px-4">Nombre</th>
+        <th class="py-4 px-4">Email</th>
+        <th class="py-4 px-4 text-center">Compras</th>
+        <th class="py-4 px-4 text-center">Acciones</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-zinc-900 font-medium"><template data-contenido="lista-clientes-filtrados"></template><template data-contenido="tr"></template></tbody>
+  </table>
+</div>
+
+<template id="fila-cliente">
+  <tr class="hover:bg-zinc-900/20" data-enlace="tr-key">
+    <td class="py-4 px-4 font-mono text-zinc-500">#<template data-contenido="id"></template></td>
+    <td class="py-4 px-4 font-bold"><template data-contenido="nombre"></template></td>
+    <td class="py-4 px-4 text-zinc-300 font-mono"><template data-contenido="email"></template></td>
+    <td class="py-4 px-4 text-center"><template data-contenido="span"></template></td>
+    <td class="py-4 px-4 text-center"><template data-contenido="protegido"></template></td>
+  </tr>
+</template>
+
+<span data-vista="cliente-vip" class="clientes-vip"><template data-contenido="compras-totales"></template></span>
+
+<span data-vista="detalle-de-compras" class="text-zinc-600">0</span>
+
+<span data-vista="protegido" class="clientes-protegido">Protegido</span>
+
+<button data-vista="degradar" class="clientes-degradar" data-enlace="degradar">Degradar</button>
+
+<template id="sin-clientes">
+  <tr>
+    <td colspan="5" class="clientes-vacio">No hay clientes públicos registrados.</td>
+  </tr>
+</template>
+
+<div data-vista="registrar-nuevo-admin" class="admins-secciones animate-fade-in">
+  <div class="admins-formulario">
+    <h3 class="admins-formulario-titulo">Registrar Nuevo Admin</h3>
+    <form class="space-y-4 pt-4" data-enlace="form-on-submit">
+      <div>
+        <label class="admin-etiqueta">Nombre Completo</label>
+        <input required type="text" class="panel-campo" data-enlace="input-value">
+      </div>
+      <div>
+        <label class="admin-etiqueta">Correo Corporativo</label>
+        <div class="flex">
+          <input required type="text" class="admins-correo" placeholder="ej. carlos" data-enlace="ej-carlos">
+          <span class="admins-dominio">@autopremium.com</span>
+        </div>
+      </div>
+      <div>
+        <label class="admin-etiqueta">Contraseña Inicial</label>
+        <input required type="password" class="panel-campo" data-enlace="input-value-2">
+      </div>
+      <button type="submit" class="admins-crear">+ Crear Cuenta</button>
+    </form>
+  </div>
+  <div class="admins-personal">
+    <h3 class="panel-subtitulo">Directivos y Personal Autorizado</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4"><template data-contenido="lista-admins-filtrados"></template></div>
+  </div>
+</div>

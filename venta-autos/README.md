@@ -1,6 +1,14 @@
-# React + Vite
+# AutoPremium
 
-La configuración de inicio de sesión en dos pasos y sus variables de Render están en [AUTENTICACION.md](./AUTENTICACION.md). Antes del despliegue, aplica la migración `db/004_auth_security.sql` en Neon.
+## Dónde está el HTML
+
+- [index.html](./index.html) contiene el menú, la portada, el mapa y el pie.
+- [src/pages](./src/pages) contiene el HTML del catálogo, el carrito y el estado del pago.
+- [src/components](./src/components) contiene el HTML del acceso, el chat y la accesibilidad.
+- [src/vistas.css](./src/vistas.css) contiene los estilos de las vistas. Los archivos `.jsx` conectan el HTML con React y la API.
+- [El panel administrativo](../autopremium-admin/src) tiene sus propios archivos HTML para el acceso, el panel y las fichas.
+
+La configuración de inicio de sesión en dos pasos y sus variables de Render están en [AUTENTICACION.md](./AUTENTICACION.md). Para configurar una base nueva, consulta las migraciones en [db](./db).
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

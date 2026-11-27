@@ -1,13 +1,279 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es-MX">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/src/index.css" />
     <title>AutoPremium CDMX</title>
   </head>
   <body>
-    <div id="root"></div>
+    <a class="skip-link" href="#contenido-principal">Saltar al contenido principal</a>
+
+    <header id="encabezado-principal" class="site-header print:hidden">
+      <div class="header-row">
+        <a class="brand" href="/">
+          AutoPremium <span>CDMX</span>
+        </a>
+
+        <nav id="navegacion-principal" aria-label="Principal" class="site-nav">
+          <a href="/">Inicio</a>
+          <a href="/catalogo">Catálogo</a>
+          <a href="#mapa-showroom">Dónde encontrarnos</a>
+          <a href="/carrito">
+            Carrito (<span id="conteo-carrito">0</span>)
+          </a>
+        </nav>
+        <div id="acciones-encabezado" class="header-actions"></div>
+      </div>
+      <div id="controles-accesibilidad" class="region-react"></div>
+    </header>
+
+    <div id="avisos-y-acceso" class="region-react"></div>
+
+    <main id="contenido-principal" tabindex="-1">
+      <div id="portada" class="portada">
+        <section class="hero">
+          <div class="hero-background">
+            <img
+              src="https://images.unsplash.com/photo-1603584173870-7f23fdae1b7a?auto=format&amp;fit=crop&amp;q=80&amp;w=1920"
+              alt=""
+              class="home-hero-image">
+            <div class="hero-background-layer"></div>
+          </div>
+
+          <div class="hero-copy">
+            <p class="hero-eyebrow">Redefiniendo la conducción</p>
+            <h1 class="hero-title">
+              El camino a <br>
+              <span class="text-content">tu manera.</span>
+            </h1>
+            <p class="hero-summary">
+              Explora nuestro catálogo exclusivo de vehículos diseñados bajo los más altos estándares de desempeño, lujo y sostenibilidad tecnológica.
+            </p>
+            <button type="button" class="hero-button ir-al-catalogo">
+              Ver Catálogo <span>→</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="experience-section">
+          <div class="experience-grid">
+            <div class="experience-info">
+              <p class="experience-eyebrow">AutoPremium CDMX</p>
+              <h2 class="experience-title">Por qué elegir <br>nuestra experiencia</h2>
+              <p class="showcase-description">
+                No solo vendemos vehículos; entregamos obras maestras de la ingeniería moderna. Ofrecemos un ecosistema de compra transparente y soporte técnico capacitado.
+              </p>
+              <div class="stats-row">
+                <div>
+                  <h3 class="heading-large font-black text-content">100%</h3>
+                  <p class="stat-label">Clientes Satisfechos</p>
+                </div>
+                <div>
+                  <h3 class="heading-large font-black text-content">10+</h3>
+                  <p class="stat-label">Años de Liderazgo</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="bento-grid">
+              <div class="bento-card">
+                <div class="bento-icon">🛡️</div>
+                <h3 class="bento-title">Garantía Premium</h3>
+                <p class="bento-text">Cobertura total de fábrica y mantenimiento incluido durante los primeros tres años.</p>
+              </div>
+
+              <div class="bento-card">
+                <div class="bento-icon">$</div>
+                <h3 class="bento-title">Financiamiento</h3>
+                <p class="bento-text">Planes flexibles de arrendamiento puro y crédito con tasas preferenciales.</p>
+              </div>
+
+              <div class="bento-wide">
+                <div class="bento-wide-icon">✨</div>
+                <div>
+                  <h3 class="text-xl font-bold mb-2">Personalización Exclusiva a Medida</h3>
+                  <p class="bento-text">
+                    Sabemos que un auto de lujo debe ser único. Para configurar colores, acabados interiores y detalles especiales, <strong>te invitamos a agendar una cita y visitar nuestra agencia físicamente</strong>. Un asesor diseñará el auto de tus sueños frente a ti.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="combustion-section">
+          <div class="showcase-grid">
+            <div class="showcase-text">
+              <h2 class="showcase-title">Colección de <span class="text-muted">Combustión.</span></h2>
+              <p class="showcase-price">Desde $650,000 MXN</p>
+
+              <div class="feature-list">
+                <div>
+                  <h3 class="text-lg font-bold">Motores Eficientes</h3>
+                  <p class="text-muted text-sm">Bloques de 1.5L a 2.0L turbo de última generación para un excelente rendimiento diario.</p>
+                </div>
+                <div>
+                  <h3 class="text-lg font-bold">Alto Desempeño</h3>
+                  <p class="text-muted text-sm">Imponentes configuraciones V6 y V8 atmosféricos con un rugido inconfundible.</p>
+                </div>
+                <div>
+                  <h3 class="text-lg font-bold">Tecnología Twin-Turbo</h3>
+                  <p class="text-muted text-sm">Sistemas de sobrealimentación que maximizan la aceleración en cualquier rango de RPM.</p>
+                </div>
+              </div>
+
+              <button type="button" class="combustion-button ir-al-catalogo">
+                Ver Catálogo de Gasolina
+              </button>
+            </div>
+            <div class="combustion-media">
+              <img src="https://images.unsplash.com/photo-1494976388531-d1058494cdd8?auto=format&amp;fit=crop&amp;q=80&amp;w=800" alt="Auto Gasolina" class="showcase-image">
+              <span class="media-badge">LUJO CLÁSICO</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="hybrid-section">
+          <div class="showcase-grid-reversed">
+            <div class="showcase-text">
+              <h2 class="showcase-title">Dinámica <span class="text-content">Híbrida.</span></h2>
+              <p class="hybrid-subtitle">La inteligencia de unir dos mundos.</p>
+              <p class="showcase-description">
+                Experimenta el balance perfecto. Conduce en ciudad con cero consumo gracias a nuestras baterías de alta densidad, y desata la potencia del motor térmico para viajes largos sin preocuparte por la autonomía. Diseño aerodinámico y pantallas holográficas internas.
+              </p>
+              <button type="button" class="hybrid-button ir-al-catalogo">
+                Explorar Híbridos
+              </button>
+            </div>
+            <div class="hybrid-media">
+              <img src="https://images.unsplash.com/photo-1593941707882-a5bba14938c7?auto=format&amp;fit=crop&amp;q=80&amp;w=800" alt="Auto Hibrido" class="showcase-image">
+            </div>
+          </div>
+        </section>
+
+        <section class="electric-section">
+          <div class="showcase-grid">
+            <div class="showcase-text">
+              <h2 class="electric-title">Revolución Eléctrica.</h2>
+              <p class="electric-subtitle">El futuro no hace ruido. Acelera.</p>
+              <ul class="showcase-specs">
+                <li class="showcase-spec"><span class="text-content">⚡</span> 0 a 100 km/h en menos de 2.1 segundos.</li>
+                <li class="showcase-spec"><span class="text-content">🔋</span> Autonomías que superan los 600 kilómetros.</li>
+                <li class="showcase-spec"><span class="text-content">🔌</span> Red de carga ultra-rápida exclusiva.</li>
+              </ul>
+              <button type="button" class="electric-button ir-al-catalogo">
+                Explorar eléctricos
+              </button>
+            </div>
+            <div class="electric-media group">
+              <img src="https://images.unsplash.com/photo-1536700503339-1e4b06520771?auto=format&amp;fit=crop&amp;q=80&amp;w=800" alt="Tesla Model S" class="electric-image">
+            </div>
+          </div>
+        </section>
+
+        <section class="performance-section">
+          <div class="performance-glow"></div>
+          <div class="performance-grid">
+            <div class="showcase-text">
+              <h2 class="performance-title">Adrenalina Pura.</h2>
+              <div class="performance-rule"></div>
+              <p class="showcase-description">
+                Jaulas antivuelco, chasis monocasco de fibra de carbono y aerodinámica activa. Vehículos nacidos en la pista de carreras, presentados en una estética <span class="text-content font-bold">oscura y sigilosa</span>, homologados estratégicamente para dominar las calles.
+              </p>
+              <button type="button" class="performance-button ir-al-catalogo">
+                Explorar superdeportivos
+              </button>
+            </div>
+            <div class="performance-media group">
+              <div class="absolute inset-0 z-10"></div>
+              <img src="https://i.pinimg.com/originals/2b/1f/53/2b1f53744c3ccb7b81a81086e3f289cc.jpg" alt="McLaren Superdeportivo" class="performance-image">
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div id="paginas-interactivas" class="region-react"></div>
+
+      <section id="mapa-showroom" aria-labelledby="mapa-titulo" tabindex="-1" class="showroom-section">
+        <div class="showroom-heading">
+          <h2 id="mapa-titulo" class="showroom-title">Visita Nuestro Showroom</h2>
+          <p class="showroom-eyebrow">Agenda tu cita para personalización</p>
+        </div>
+
+        <div class="showroom-grid">
+          <div class="showroom-map">
+            <iframe
+              title="Ubicación AutoPremium CDMX"
+              class="showroom-frame"
+              src="https://maps.google.com/maps?q=Av%20Telecomunicaciones,%20Chinam%20Pac%20de%20Juárez,%20Iztapalapa,%2009208%20Ciudad%20de%20México,%20CDMX&amp;t=&amp;z=16&amp;ie=UTF8&amp;iwloc=&amp;output=embed"
+              allowfullscreen
+              loading="lazy"
+              referrerpolicy="no-referrer-when-downgrade"
+            ></iframe>
+          </div>
+          <div class="showroom-sidebar">
+            <div class="showroom-details">
+              <div>
+                <h3 class="showroom-detail-title"><span>📍</span> Ubicación</h3>
+                <p class="showroom-address">Av Telecomunicaciones, Chinam Pac de Juárez,<br> Iztapalapa, 09208 Ciudad de México, CDMX</p>
+                <a class="map-link" href="https://maps.google.com/?q=Av+Telecomunicaciones+Chinam+Pac+de+Juarez+Iztapalapa+CDMX">Abrir ubicación en Google Maps</a>
+              </div>
+              <div class="showroom-rule"></div>
+              <div>
+                <h3 class="showroom-detail-title"><span>🕒</span> Horarios de Atención</h3>
+                <ul class="showroom-schedule">
+                  <li class="schedule-row">
+                    <span>Lunes a Viernes</span>
+                    <span class="schedule-time">09:00 - 20:00</span>
+                  </li>
+                  <li class="schedule-row">
+                    <span>Sábados</span>
+                    <span class="schedule-time">10:00 - 18:00</span>
+                  </li>
+                  <li class="schedule-row">
+                    <span>Domingos</span>
+                    <span class="schedule-time">10:00 - 15:00</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer print:hidden">
+      <div class="footer-grid">
+        <div>
+          <a class="footer-brand" href="/">AutoPremium <span>CDMX</span></a>
+          <p>Encuentra el vehículo que va contigo. Explora nuestras colecciones y visítanos para conocerlo de cerca.</p>
+        </div>
+        <div>
+          <h2>Explora</h2>
+          <ul class="footer-links" aria-label="Enlaces del pie de página">
+            <li><a href="/">Inicio</a></li>
+            <li><a href="/catalogo">Catálogo</a></li>
+            <li><a href="/carrito">Carrito</a></li>
+            <li><a href="#mapa-showroom">Dónde encontrarnos</a></li>
+          </ul>
+        </div>
+        <div>
+          <h2>Visítanos</h2>
+          <address>Av. Telecomunicaciones, Chinam Pac de Juárez, Iztapalapa, 09208 Ciudad de México.</address>
+          <p>Lunes a viernes: 09:00–20:00<br>Sábados: 10:00–18:00<br>Domingos: 10:00–15:00</p>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© <span id="anio-pie"></span> AutoPremium CDMX.</p>
+        <a id="volver-arriba" href="#contenido-principal">Volver arriba ↑</a>
+      </div>
+    </footer>
+
+    <div id="chatbot" class="region-react"></div>
+    <div id="root" hidden></div>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

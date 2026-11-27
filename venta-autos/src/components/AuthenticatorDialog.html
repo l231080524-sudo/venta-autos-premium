@@ -1,0 +1,27 @@
+<div data-vista="div" class="p-6 space-y-4 text-content"><template data-contenido="p"></template><template data-contenido="consultando-la-configuracion"></template><template data-contenido="app-autenticadora-activa-la-proxima-vez-que"></template><template data-contenido="form"></template></div>
+
+<p data-vista="p" role="alert" class="border border-line rounded p-3"><template data-contenido="error"></template></p>
+
+<p data-vista="consultando-la-configuracion" role="status">Consultando la configuración…</p>
+
+<p data-vista="app-autenticadora-activa-la-proxima-vez-que" role="status">App autenticadora activa. La próxima vez que inicies sesión, selecciona <strong>Usar código de la app autenticadora</strong>.</p>
+
+<form data-vista="form" class="space-y-4" data-enlace="form-aria-busy"><template data-contenido="escanea-el-qr-con-google-authenticator-o"></template></form>
+
+<template id="escanea-el-qr-con-google-authenticator-o">
+  <p>Escanea el QR con Google Authenticator o ingresa la clave manualmente. Después escribe el código de seis dígitos que muestra la app.</p>
+  <img alt="QR para vincular AutoPremium con tu app autenticadora" width="280" height="280" class="mx-auto max-w-full h-auto" data-enlace="img-src">
+  <label class="block" for="authenticator-key">Clave manual</label>
+  <input id="authenticator-key" type="text" autocomplete="off" readonly data-enlace="authenticator-key">
+  <label class="block" for="authenticator-code">Código de seis dígitos</label>
+  <input id="authenticator-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" required data-enlace="authenticator-code">
+  <button type="submit" data-enlace="activar-app-autenticadora">Activar app autenticadora</button>
+  <button class="text-sm underline" type="button" data-enlace="generar-otro-qr">Generar otro QR</button>
+</template>
+
+<template id="confirma-tu-contrasena-para-vincular-google-authenticator">
+  <p>Confirma tu contraseña para vincular Google Authenticator u otra app compatible.</p>
+  <label class="block" for="authenticator-password">Contraseña actual</label>
+  <input id="authenticator-password" type="password" autocomplete="current-password" maxlength="256" required data-enlace="authenticator-password">
+  <button type="submit" data-enlace="generar-codigo-qr">Generar código QR</button>
+</template>

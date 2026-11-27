@@ -1,0 +1,105 @@
+<div data-vista="acceso-autopremium" class="acceso-contenido">
+  <h2 class="acceso-titulo" data-contenido="titulo">Acceso AutoPremium</h2>
+  <p class="acceso-instrucciones" data-contenido="instrucciones">Ingresa con tu correo y contraseña; después confirmarás con un código de un solo uso.</p>
+  <template data-contenido="aviso-de-error"></template>
+  <template data-contenido="credenciales"></template>
+</div>
+
+<div data-vista="mensaje-de-error" role="alert" class="acceso-error" data-contenido="error"></div>
+
+<form data-vista="credenciales" class="acceso-formulario" data-enlace="formulario">
+  <template data-contenido="nombre-del-cliente"></template>
+  <div>
+    <label for="auth-email" class="acceso-etiqueta">Correo electrónico</label>
+    <input
+      id="auth-email"
+      name="auth-email"
+      autocomplete="email"
+      required
+      type="email"
+      maxlength="150"
+      placeholder="correo@ejemplo.com"
+      class="acceso-campo"
+
+    >
+  </div>
+  <div>
+    <label for="auth-password" class="acceso-etiqueta">Contraseña</label>
+    <input
+      id="auth-password"
+      name="auth-password"
+      required
+      type="password"
+      maxlength="256"
+      placeholder="••••••••"
+      class="acceso-campo"
+
+    >
+  </div>
+  <template data-contenido="solo-registro"></template>
+  <template data-contenido="metodos-de-verificacion"></template>
+  <button type="submit" class="acceso-continuar" data-enlace="enviar" data-contenido="texto-del-boton">Continuar con verificación</button>
+
+  <div class="acceso-registro">
+    <span class="text-muted" data-contenido="mensaje-de-registro">¿Eres nuevo cliente?</span> <button type="button" class="acceso-cambiar-modo" data-enlace="cambiar-registro" data-contenido="enlace-de-registro">Regístrate aquí</button>
+  </div>
+</form>
+
+<div data-vista="nombre-de-registro">
+  <label for="auth-nombre" class="acceso-etiqueta">Nombre completo</label>
+  <input
+    id="auth-nombre"
+    name="auth-nombre"
+    autocomplete="name"
+    required
+    type="text"
+    maxlength="100"
+    placeholder="Ej. Hugo Becerra"
+    class="acceso-campo"
+
+  >
+</div>
+
+<div data-vista="telefono-de-registro">
+  <label for="auth-telefono" class="acceso-etiqueta">Teléfono celular</label>
+  <input
+    id="auth-telefono"
+    name="auth-telefono"
+    autocomplete="tel"
+    required
+    type="tel"
+    maxlength="30"
+    placeholder="+52 55 1234 5678"
+    class="acceso-campo"
+
+  >
+</div>
+
+<fieldset data-vista="metodos-de-verificacion" class="acceso-metodos">
+  <legend class="acceso-leyenda">Segundo método de verificación</legend>
+  <label class="acceso-metodo"><input type="radio" name="auth-method" value="email" data-enlace="auth-method">Enviar código al correo</label>
+  <label class="acceso-metodo"><input type="radio" name="auth-method" value="totp" data-enlace="metodo-app">Usar código de la app autenticadora</label>
+</fieldset>
+
+<form data-vista="verificar-codigo" class="acceso-formulario" data-enlace="formulario">
+  <div>
+    <label for="auth-otp" class="acceso-etiqueta">Código de seis dígitos</label>
+    <input
+      id="auth-otp"
+      name="auth-otp"
+      autocomplete="one-time-code"
+      inputmode="numeric"
+      pattern="[0-9]{6}"
+      required
+      minlength="6"
+      placeholder="000000"
+      class="acceso-codigo"
+
+    >
+  </div>
+  <button type="submit" class="acceso-verificar" data-enlace="enviar" data-contenido="texto-del-boton">Verificar e iniciar sesión</button>
+  <template data-contenido="reenviar-codigo"></template>
+  <button type="button" class="acceso-volver" data-enlace="volver-al-acceso">Volver al acceso</button>
+</form>
+
+<button data-vista="reenviar-codigo" type="button" class="acceso-reenviar" data-enlace="enviar" data-contenido="texto-de-reenvio">Enviar otro código</button>

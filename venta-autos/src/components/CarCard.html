@@ -1,0 +1,44 @@
+<article data-vista="h3" class="car-card" data-enlace="h3">
+  <div class="car-image">
+    <template data-contenido="img"></template>
+    <span class="category-label"><template data-contenido="categories"></template></span>
+  </div>
+  <div class="car-content">
+    <h3 data-enlace="h3-id"><template data-contenido="name"></template></h3>
+    <p class="text-muted">Año <template data-contenido="anio"></template> · <template data-contenido="available"></template></p>
+    <div class="car-purchase">
+      <p>
+        <span class="text-muted">Precio de demostración</span>
+        <strong><template data-contenido="to-locale-string"></template> MXN</strong>
+      </p>
+      <button class="primary-button" data-enlace="button-disabled"><template data-contenido="pending"></template></button>
+    </div>
+    <button class="car-details-button" aria-haspopup="dialog" data-enlace="mas-informacion">Más información</button>
+  </div>
+  <template data-contenido="accessible-dialog"></template>
+</article>
+
+<img data-vista="img" loading="lazy" data-enlace="img-src">
+
+<p data-vista="imagen-no-disponible-de">Imagen no disponible de <template data-contenido="name"></template></p>
+
+<div data-vista="ficha-tecnica" class="car-details-content">
+  <p class="text-muted"><template data-contenido="categories"></template> · Año <template data-contenido="anio"></template> · <template data-contenido="available"></template></p>
+  <template data-contenido="p"></template>
+  <h3>Ficha técnica</h3>
+  <dl class="car-specs"><template data-contenido="length"></template></dl>
+</div>
+
+<p data-vista="p"><template data-contenido="descripcion"></template></p>
+
+<div data-vista="div" data-enlace="div-key">
+  <dt><template data-contenido="key"></template></dt>
+  <dd><template data-contenido="string"></template></dd>
+</div>
+
+<div data-vista="div-2">
+  <dt>Especificaciones</dt>
+  <dd>Consulta la ficha técnica en nuestra agencia.</dd>
+</div>
+
+<p data-vista="cargando-vehiculo" role="status">Cargando vehículo…</p>

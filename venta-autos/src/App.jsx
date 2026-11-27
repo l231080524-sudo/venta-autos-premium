@@ -1,20 +1,8 @@
-import Showroom from './components/Showroom';
-import SiteFooter from './components/SiteFooter';
-import SiteHeader from './components/SiteHeader';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-
-// Importaciones
-import Home from './pages/Home';
-import CatalogoUnico from './pages/CatalogoUnico';
-import Carrito from './pages/Carrito';
-import AuthModal from './components/AuthModal';
-import PagoResultado from './pages/PagoResultado';
-import Chatbot from './components/Chatbot';
 import { authHeaders } from './api';
+import { VistaSitio } from './App.vista.jsx';
 
 export default function App() {
-  // 🚀 INYECCIÓN DE LA VARIABLE DE ENTORNO
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
   const [usuario, setUsuario] = useState(() => {
@@ -52,7 +40,6 @@ export default function App() {
       return;
     }
     try {
-      // 🚀 SE REEMPLAZÓ LOCALHOST AQUÍ
       const response = await fetch(`${API_URL}/api/apartados`, { headers: authHeaders(usuario) });
       if (response.ok) {
         const data = await response.json();
@@ -64,8 +51,6 @@ export default function App() {
   }, [usuario, API_URL]);
 
   useEffect(() => {
-    // State updates occur only after the asynchronous inventory response.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     actualizarConteoCarrito();
   }, [actualizarConteoCarrito]);
 
@@ -96,7 +81,6 @@ export default function App() {
         });
         if (response.status===401) window.dispatchEvent(new Event('autopremium:session-expired'));
       } catch {
-        // La siguiente solicitud autenticada vuelve a validar la sesión si hay una interrupción de red.
       } finally { heartbeatBusy = false; }
     };
     const expireListener = () => {
@@ -131,7 +115,6 @@ export default function App() {
       return;
     }
     try {
-      // 🚀 SE REEMPLAZÓ LOCALHOST AQUÍ
       const response = await fetch(`${API_URL}/api/apartados`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders(usuario) },
@@ -150,33 +133,8 @@ export default function App() {
     }
   };
 
-  return (
-    <BrowserRouter>
-      <a className="skip-link" href="#contenido-principal">Saltar al contenido principal</a>
-      <SiteHeader usuario={usuario} carritoCount={carritoCount} logout={logout} setModalAuth={setModalAuth} />
-      {sessionMessage && <div role="alert" className="session-expired-banner">
-        <span>{sessionMessage}</span>
-        <button type="button" onClick={() => { setSessionMessage(''); setModalAuth({abierto:true,modoRegistro:false}); }}>Volver a iniciar sesión</button>
-      </div>}
-      {modalAuth.abierto && <AuthModal
-        modalAuth={modalAuth}
-        setModalAuth={setModalAuth}
-        onLogin={login}
-      />}
-      <main id="contenido-principal" tabIndex={-1}>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/catalogo" element={<CatalogoUnico agregarAlCarrito={agregarAlCarrito} />} />
-        <Route path="/carrito" element={<Carrito key={usuario?.id || "invitado"} usuario={usuario} setModalAuth={setModalAuth} actualizarConteoCarrito={actualizarConteoCarrito} />} />
-        <Route path="/pago/:referencia" element={<PagoResultado usuario={usuario} setModalAuth={setModalAuth} actualizarConteoCarrito={actualizarConteoCarrito} />} />
-
-        {/* Redirección de seguridad */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-      <Showroom />
-      </main>
-      <SiteFooter />
-      <Chatbot />
-    </BrowserRouter>
-  );
+  return <VistaSitio {...{
+    usuario, carritoCount, modalAuth, setModalAuth, sessionMessage,
+    setSessionMessage, logout, actualizarConteoCarrito, login, agregarAlCarrito,
+  }} />;
 }

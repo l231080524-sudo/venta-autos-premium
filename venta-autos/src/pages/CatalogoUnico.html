@@ -1,0 +1,110 @@
+<div data-vista="catalogo" class="catalogo">
+  <header class="catalogo-hero">
+    <div class="catalogo-fondo"></div>
+    <p class="catalogo-intro">Inventario Exclusivo CDMX</p>
+    <h1 class="catalogo-titulo">SHOWROOM <span class="text-content">DIGITAL</span></h1>
+    <div class="catalogo-separador"></div>
+  </header>
+
+  <section aria-label="Filtros del catálogo" class="filtros-catalogo">
+    <div class="filtros-panel">
+      <div role="group" aria-label="Categoría del vehículo" class="catalog-category-filters">
+        <button type="button" class="filtro-categoria" data-enlace="todos">Todos</button>
+        <button type="button" class="filtro-categoria" data-enlace="gasolina">Gasolina</button>
+        <button type="button" class="filtro-categoria" data-enlace="hibrido">Híbridos</button>
+        <button type="button" class="filtro-categoria" data-enlace="electrico">Eléctricos</button>
+        <button type="button" class="filtro-categoria" data-enlace="superdeportivo">Superdeportivos</button>
+      </div>
+
+      <div class="filtro-precio">
+        <div class="filtro-precio-etiqueta">
+          <label for="precio-maximo" class="text-sm font-bold">Precio máximo</label>
+          <span class="filtro-precio-monto" data-contenido="precio-maximo">$0 MXN</span>
+        </div>
+        <input
+          id="precio-maximo"
+          type="range"
+          min="0"
+          step="0.01"
+          class="filtro-precio-control"
+        >
+        <button type="button" data-enlace="restablecer-filtros">Restablecer filtros</button>
+      </div>
+    </div>
+  </section>
+
+  <p role="status" class="px-6 py-4" data-contenido="total-resultados"></p>
+  <div id="resultados-catalogo" class="flex-1" data-contenido="resultados"></div>
+</div>
+
+<div data-vista="cargando-catalogo" role="status" class="catalogo-cargando">
+  <div class="catalogo-indicador"></div>
+  <p class="catalogo-cargando-texto">Sincronizando inventario...</p>
+</div>
+
+<div data-vista="error-catalogo" role="alert" class="catalogo-error">
+  <span class="heading-large">⚠️</span>
+  <h2 class="catalogo-error-titulo">No se pudo cargar el catálogo</h2>
+  <p class="text-sm text-muted mb-6">No pudimos cargar los vehículos. Revisa tu conexión e intenta recargar la página.</p>
+</div>
+
+<div data-vista="colecciones" class="w-full space-y-0">
+  <template data-contenido="gasolina"></template>
+  <template data-contenido="hibrido"></template>
+  <template data-contenido="electrico"></template>
+  <template data-contenido="superdeportivo"></template>
+</div>
+
+<section data-vista="coleccion-gasolina" class="coleccion-gasolina">
+  <div class="max-w-[1400px] mx-auto">
+    <div class="mb-12">
+      <span class="coleccion-intro-muted">Clásicos de Combustión</span>
+      <h2 class="coleccion-titulo">Colección Gasolina</h2>
+      <div class="coleccion-separador"></div>
+    </div>
+    <template data-contenido="vehiculos"></template>
+  </div>
+</section>
+
+<section data-vista="coleccion-hibrido" class="coleccion-seccion">
+  <div class="max-w-[1400px] mx-auto">
+    <div class="mb-12">
+      <span class="coleccion-intro">Doble Propulsión Inteligente</span>
+      <h2 class="coleccion-titulo">Colección Híbridos</h2>
+      <div class="coleccion-separador"></div>
+    </div>
+    <template data-contenido="vehiculos"></template>
+  </div>
+</section>
+
+<section data-vista="coleccion-electrico" class="coleccion-seccion">
+  <div class="max-w-[1400px] mx-auto">
+    <div class="mb-12">
+      <span class="coleccion-intro">Emisiones Cero</span>
+      <h2 class="coleccion-titulo">Colección Eléctricos</h2>
+      <div class="coleccion-separador"></div>
+    </div>
+    <template data-contenido="vehiculos"></template>
+  </div>
+</section>
+
+<section data-vista="coleccion-superdeportivo" class="coleccion-superdeportivos">
+  <div class="max-w-[1400px] mx-auto">
+    <div class="mb-12">
+      <span class="coleccion-intro-pista">Desempeño Extremo de Pista</span>
+      <h2 class="coleccion-titulo-pista">Superdeportivos</h2>
+      <div class="coleccion-separador"></div>
+    </div>
+    <template data-contenido="vehiculos"></template>
+  </div>
+</section>
+
+<p data-vista="sin-vehiculos" class="text-muted italic">No hay unidades bajo este rango.</p>
+
+<div data-vista="lista-vehiculos" class="catalog-results-grid">
+  <template data-contenido="tarjetas"></template>
+</div>
+
+<div data-vista="resultado-vehiculo" class="relative group" data-enlace="vehiculo">
+  <template data-contenido="tarjeta"></template>
+</div>

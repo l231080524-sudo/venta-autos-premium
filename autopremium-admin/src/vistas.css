@@ -1,0 +1,351 @@
+.admin-barra {
+  @apply border-b border-zinc-900 bg-black/40 backdrop-blur-xl sticky top-0 z-50 transition-all;
+}
+
+.admin-barra-contenido {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between;
+}
+
+.admin-identidad {
+  @apply flex items-center gap-3;
+}
+
+.admin-distintivo {
+  @apply text-xs bg-red-600/10 text-red-500 border border-red-900/30 font-black px-2.5 py-1 rounded-md uppercase tracking-widest;
+}
+
+.admin-marca {
+  @apply text-lg font-black tracking-wider uppercase font-mono;
+}
+
+.admin-cuenta {
+  @apply flex items-center gap-4;
+}
+
+.admin-datos-cuenta {
+  @apply hidden md:block text-right;
+}
+
+.admin-nombre {
+  @apply text-xs font-bold text-white uppercase;
+}
+
+.admin-identificador {
+  @apply text-[10px] text-zinc-500 font-mono tracking-widest uppercase;
+}
+
+.admin-salir {
+  @apply border border-zinc-800 hover:border-red-900 hover:bg-red-950/30 hover:text-red-400 text-zinc-400 text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition duration-300;
+}
+
+.admin-acceso {
+  @apply min-h-screen bg-black flex flex-col justify-center items-center p-6 font-sans relative overflow-hidden text-white;
+}
+
+.admin-acceso-fondo {
+  @apply absolute inset-0 pointer-events-none opacity-20;
+}
+
+.admin-acceso-luz {
+  @apply absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-red-900 blur-[150px] rounded-full;
+}
+
+.admin-acceso-tarjeta {
+  @apply relative z-10 w-full max-w-md bg-zinc-950 border border-zinc-900 rounded-3xl p-8 shadow-[0_0_50px_rgba(0,0,0,0.8)];
+}
+
+.admin-acceso-intro {
+  @apply text-center mb-8;
+}
+
+.admin-acceso-distintivo {
+  @apply text-xs bg-red-600/10 text-red-500 border border-red-900/30 font-black px-3 py-1.5 rounded-lg uppercase tracking-widest;
+}
+
+.admin-acceso-titulo {
+  @apply text-3xl font-black uppercase tracking-tight text-white mt-4;
+}
+
+.admin-acceso-subtitulo {
+  @apply text-xs text-zinc-500 mt-2 tracking-widest uppercase;
+}
+
+.admin-acceso-formulario {
+  @apply space-y-5;
+}
+
+.admin-acceso-error {
+  @apply bg-red-950/40 border border-red-900 text-red-500 text-xs font-bold uppercase tracking-wider p-4 rounded-xl mb-6 text-center shadow-[0_0_15px_rgba(220,38,38,0.2)] animate-pulse;
+}
+
+.admin-acceso-verificacion {
+  @apply space-y-3;
+}
+
+.admin-acceso-codigo {
+  @apply w-full bg-black border border-zinc-800 rounded-xl p-3;
+}
+
+.admin-acceso-etiqueta {
+  @apply text-[10px] uppercase tracking-widest text-zinc-500 font-bold block mb-1.5;
+}
+
+.admin-acceso-campo {
+  @apply w-full bg-black border border-zinc-800 focus:border-red-600 rounded-xl p-3 text-sm text-white focus:outline-none transition shadow-inner;
+}
+
+.panel-admin {
+  @apply min-h-screen bg-[#050505] text-white font-sans antialiased pb-20;
+}
+
+.panel-contenido {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10;
+}
+
+.panel-pestanas {
+  @apply flex flex-wrap gap-2 border-b border-zinc-900 pb-4 mb-10 overflow-x-auto;
+}
+
+.panel-cargando {
+  @apply py-20 text-center text-zinc-500 text-xs uppercase tracking-widest font-mono animate-pulse;
+}
+
+.panel-titulo {
+  @apply text-3xl font-black uppercase tracking-tight mb-2;
+}
+
+.panel-metricas {
+  @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6;
+}
+
+.metrica-ingresos {
+  @apply bg-gradient-to-br from-emerald-900/40 to-black border border-emerald-900/50 rounded-3xl p-6 relative overflow-hidden;
+}
+
+.etiqueta-ingresos {
+  @apply text-[10px] text-emerald-500 font-bold uppercase tracking-widest mb-2;
+}
+
+.metrica-entregas {
+  @apply bg-gradient-to-br from-blue-900/40 to-black border border-blue-900/50 rounded-3xl p-6 relative overflow-hidden;
+}
+
+.etiqueta-entregas {
+  @apply text-[10px] text-blue-400 font-bold uppercase tracking-widest mb-2;
+}
+
+.metrica-valor {
+  @apply bg-gradient-to-br from-purple-900/40 to-black border border-purple-900/50 rounded-3xl p-6 relative overflow-hidden;
+}
+
+.etiqueta-valor {
+  @apply text-[10px] text-purple-400 font-bold uppercase tracking-widest mb-2;
+}
+
+.metrica-stock {
+  @apply bg-gradient-to-br from-amber-900/40 to-black border border-amber-900/50 rounded-3xl p-6 relative overflow-hidden;
+}
+
+.etiqueta-stock {
+  @apply text-[10px] text-amber-500 font-bold uppercase tracking-widest mb-2;
+}
+
+.inventario-formulario {
+  @apply bg-zinc-950 border border-zinc-900 rounded-3xl p-6 lg:p-8 relative overflow-hidden;
+}
+
+.panel-titulo-formulario {
+  @apply font-black text-lg uppercase tracking-tight mb-6 border-b border-zinc-900 pb-4;
+}
+
+.inventario-campos {
+  @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5;
+}
+
+.admin-etiqueta {
+  @apply text-[10px] uppercase tracking-widest text-zinc-500 font-bold block mb-1;
+}
+
+.panel-campo {
+  @apply w-full bg-black border border-zinc-900 rounded-xl p-3 text-sm focus:outline-none;
+}
+
+.panel-campo-numerico {
+  @apply w-full bg-black border border-zinc-900 rounded-xl p-3 text-sm focus:outline-none font-mono;
+}
+
+.panel-categoria {
+  @apply w-full bg-black border border-zinc-900 rounded-xl p-3 text-sm focus:outline-none uppercase font-bold text-xs;
+}
+
+.panel-spec-etiqueta {
+  @apply text-[11px] uppercase tracking-widest text-zinc-400 font-black;
+}
+
+.panel-agregar-spec {
+  @apply text-[10px] font-black uppercase text-blue-400 bg-blue-950/40 border border-blue-900/30 px-3 py-1.5 rounded-lg hover:text-blue-300;
+}
+
+.panel-publicar {
+  @apply w-full bg-white hover:bg-zinc-200 text-black font-black uppercase tracking-widest py-4 rounded-xl transition duration-300 text-xs shadow-xl;
+}
+
+.inventario-encabezado {
+  @apply flex justify-between items-center border-b border-zinc-900 pb-4;
+}
+
+.inventario-busqueda {
+  @apply w-80 bg-zinc-950 border border-zinc-900 rounded-xl p-3 text-xs focus:outline-none;
+}
+
+.inventario-lista {
+  @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6;
+}
+
+.inventario-spec {
+  @apply flex gap-2 items-center bg-zinc-900/30 p-2 border border-zinc-900 rounded-xl;
+}
+
+.inventario-spec-campo {
+  @apply w-1/2 bg-black border border-zinc-800 rounded-lg p-2 text-xs focus:outline-none;
+}
+
+.clientes-panel {
+  @apply bg-zinc-950 border border-zinc-900 rounded-3xl p-6 overflow-hidden;
+}
+
+.panel-subtitulo {
+  @apply font-black text-lg uppercase tracking-tight mb-4;
+}
+
+.clientes-encabezado {
+  @apply border-b border-zinc-900 text-zinc-500 uppercase tracking-widest font-black;
+}
+
+.clientes-vip {
+  @apply bg-emerald-500/10 text-emerald-400 border border-emerald-900 px-3 py-1 rounded-md;
+}
+
+.clientes-protegido {
+  @apply inline-block bg-zinc-900/50 border border-zinc-800 text-zinc-500 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest cursor-not-allowed;
+}
+
+.clientes-degradar {
+  @apply inline-block border border-red-900/40 text-red-500 hover:bg-red-950/40 hover:text-red-400 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition;
+}
+
+.clientes-vacio {
+  @apply py-8 text-center text-zinc-500 font-mono uppercase tracking-widest;
+}
+
+.admins-secciones {
+  @apply grid grid-cols-1 lg:grid-cols-3 gap-8;
+}
+
+.admins-formulario {
+  @apply bg-zinc-950 border border-zinc-900 rounded-3xl p-6 h-fit;
+}
+
+.admins-formulario-titulo {
+  @apply font-black text-sm uppercase tracking-widest mb-2 border-b border-zinc-900 pb-3;
+}
+
+.admins-correo {
+  @apply w-1/2 bg-black border-y border-l border-zinc-900 rounded-l-xl p-3 text-sm focus:outline-none focus:border-zinc-700 font-mono text-right;
+}
+
+.admins-dominio {
+  @apply w-1/2 bg-zinc-900 border-y border-r border-zinc-900 rounded-r-xl p-3 text-xs text-zinc-400 font-mono flex items-center overflow-hidden;
+}
+
+.admins-crear {
+  @apply w-full bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs uppercase tracking-widest py-4 rounded-xl transition mt-2;
+}
+
+.admins-personal {
+  @apply bg-zinc-950 border border-zinc-900 rounded-3xl p-6 lg:col-span-2;
+}
+
+.admin-vehiculo {
+  @apply bg-zinc-950 border border-zinc-900 rounded-3xl overflow-hidden flex flex-col hover:border-zinc-700/50 transition-all shadow-xl;
+}
+
+.admin-vehiculo-imagen {
+  @apply w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity duration-500;
+}
+
+.admin-vehiculo-categoria {
+  @apply absolute top-4 right-4 text-[9px] font-black px-3 py-1.5 uppercase tracking-widest rounded-full bg-black/60 text-white border border-zinc-700/50 backdrop-blur-md;
+}
+
+.admin-vehiculo-campos {
+  @apply p-6 flex-1 flex flex-col gap-4;
+}
+
+.admin-ficha-etiqueta {
+  @apply text-[9px] uppercase tracking-widest text-zinc-500 font-bold block mb-1;
+}
+
+.admin-ficha-marca {
+  @apply w-full bg-black/50 border border-zinc-800 focus:border-zinc-500 rounded-lg p-2 text-xs text-white focus:outline-none font-bold transition;
+}
+
+.admin-ficha-modelo {
+  @apply w-full bg-black/50 border border-zinc-800 focus:border-zinc-500 rounded-lg p-2 text-xs text-zinc-300 focus:outline-none transition;
+}
+
+.admin-ficha-precio {
+  @apply w-full bg-black/50 border border-zinc-800 focus:border-zinc-500 rounded-lg p-2 text-xs text-emerald-400 focus:outline-none font-mono font-bold transition;
+}
+
+.admin-ficha-categoria {
+  @apply w-full bg-black/50 border border-zinc-800 focus:border-zinc-500 rounded-lg p-2 text-xs text-white focus:outline-none uppercase font-bold transition;
+}
+
+.admin-vehiculo-agotado {
+  @apply absolute inset-0 bg-red-950/70 flex items-center justify-center backdrop-blur-sm;
+}
+
+.admin-vehiculo-agotado-etiqueta {
+  @apply bg-red-600 text-white font-black text-xs uppercase tracking-widest px-4 py-2 rounded-xl shadow-[0_0_15px_rgba(220,38,38,0.5)];
+}
+
+.admin-ficha-guardar {
+  @apply flex-1 bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest py-3 rounded-xl shadow-[0_0_15px_rgba(245,158,11,0.25)] transition duration-300;
+}
+
+.admin-usuario {
+  @apply bg-black/40 border border-zinc-900 rounded-2xl p-5 flex flex-col justify-between items-start gap-4 transition hover:border-zinc-700;
+}
+
+.admin-usuario-nombre {
+  @apply text-sm font-black uppercase text-white truncate pr-2;
+}
+
+.admin-usuario-correo {
+  @apply text-[11px] text-zinc-500 font-mono tracking-widest mt-2 truncate;
+}
+
+.admin-usuario-privilegios {
+  @apply flex-1 bg-zinc-900 hover:bg-zinc-800 text-white text-[10px] font-black uppercase tracking-widest py-2 rounded-lg transition;
+}
+
+.admin-usuario-revocar {
+  @apply flex-1 border border-red-900/40 text-red-500 hover:bg-red-950/40 hover:text-red-400 text-[10px] font-black uppercase tracking-widest py-2 rounded-lg transition;
+}
+
+.admin-usuario-editar-nombre {
+  @apply w-full bg-black border border-zinc-800 rounded p-2 text-xs text-white focus:outline-none;
+}
+
+.admin-usuario-editar-rol {
+  @apply w-full bg-black border border-zinc-800 rounded p-2 text-xs text-white focus:outline-none uppercase font-bold;
+}
+
+.admin-usuario-guardar {
+  @apply flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase py-2 rounded-lg transition;
+}
+
+.admin-usuario-cancelar {
+  @apply flex-1 bg-zinc-800 hover:bg-zinc-700 text-white text-[10px] font-black uppercase py-2 rounded-lg transition;
+}

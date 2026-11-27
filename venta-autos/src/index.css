@@ -1,6 +1,8 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+@import "./vistas.css";
+@source "./";
+@source "../index.html";
 
-/* Espacio para acceder a los enlaces sin que el asistente flotante los cubra. */
 .footer-bottom { padding-bottom: 5rem; }
 
 @theme {
@@ -93,7 +95,6 @@
 button[aria-pressed="true"] { outline: 2px solid var(--content); outline-offset: -5px; text-decoration: underline; text-decoration-thickness: 2px; }
 .hero-copy { background: var(--surface); }
 .catalog-category-filters { display: flex; flex-wrap: wrap; gap: .5rem; width: 100%; min-width: 0; }
-/* Use each label's full width when wrapping, rather than squeezing five buttons into one row. */
 .catalog-category-filters button { flex: 1 1 max-content; max-width: 100%; }
 .checkout-layout { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: 1.5rem; }
 .car-card { height: 100%; border: 1px solid var(--line); border-radius: 1rem; background: var(--panel); display: flex; flex-direction: column; }
@@ -138,7 +139,8 @@ button[aria-pressed="true"] { outline: 2px solid var(--content); outline-offset:
   .profile-panel { padding: .75rem; }
   main section { padding-inline: 1rem; }
   main .p-16 { padding: 1.5rem; }
-  main .p-8, .accessible-dialog .p-8 { padding: 1rem; }
+  main :is(.p-8, .bento-card, .bento-wide),
+  .accessible-dialog :is(.p-8, .acceso-contenido) { padding: 1rem; }
   main .grid-cols-2, .accessible-dialog .grid-cols-2 { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -204,3 +206,5 @@ dialog[aria-label="Accesibilidad"] .dialog-heading { position: sticky; top: 0; z
 .voice-indicator button { margin-top: .5rem; }
 :root[data-monochrome="true"] .accessibility-widget { filter: grayscale(1); }
 @media (max-width: 480px) { .chat-greeting { max-width: calc(100vw - 180px); font-size: 12px; } }
+
+.region-react { display: contents; }

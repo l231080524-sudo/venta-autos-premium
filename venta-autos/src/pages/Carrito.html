@@ -1,0 +1,98 @@
+<div data-vista="mi-carrito-y-pagos" class="carrito-pagina">
+  <div class="carrito-contenido">
+    <h1 class="carrito-titulo">Mi carrito y pagos</h1>
+    <template data-contenido="p"></template>
+    <template data-contenido="inicia-sesion-para-continuar"></template>
+  </div>
+  <template data-contenido="accessible-dialog"></template>
+</div>
+
+<p data-vista="p" role="alert" class="carrito-aviso"><template data-contenido="error"></template> <template data-contenido="volver-a-iniciar-sesion"></template></p>
+
+<button data-vista="volver-a-iniciar-sesion" data-enlace="volver-a-iniciar-sesion">Volver a iniciar sesión</button>
+
+<section data-vista="inicia-sesion-para-continuar" class="bg-panel p-8 rounded-2xl">
+  <h2 class="text-xl font-bold">Inicia sesión para continuar</h2>
+  <p>Si tenías una sesión anterior, vuelve a entrar para usar el nuevo sistema de pagos.</p>
+  <button class="primary-button mt-4" data-enlace="iniciar-sesion">Iniciar sesión</button>
+</section>
+
+<p data-vista="cargando-carrito" role="status">Cargando carrito…</p>
+
+<template id="secciones-del-carrito">
+  <div class="carrito-pestanas" role="group" aria-label="Secciones del carrito">
+    <button data-enlace="carrito">Carrito (<template data-contenido="length"></template>)</button>
+    <button data-enlace="historial-de-pagos">Historial de pagos (<template data-contenido="length-2"></template>)</button>
+  </div>
+  <p class="carrito-modo"><template data-contenido="real"></template></p>
+  <template data-contenido="tu-carrito-esta-vacio"></template>
+  <template data-contenido="div"></template>
+</template>
+
+<template id="tu-carrito-esta-vacio">
+  <template data-contenido="tu-carrito-esta-vacio"></template>
+</template>
+
+<p data-vista="tu-carrito-esta-vacio-2">Tu carrito está vacío. <template data-contenido="link"></template></p>
+
+<template id="button">
+  <button class="mb-4" data-enlace="button-disabled"><template data-contenido="length"></template></button>
+  <div class="checkout-layout">
+    <div class="carrito-lista"><template data-contenido="lista-items"></template></div>
+    <aside class="carrito-resumen">
+      <h2 class="text-xl font-bold"><template data-contenido="real"></template></h2>
+      <p><template data-contenido="length-2"></template> vehículos seleccionados</p>
+      <p class="carrito-total">Total: <template data-contenido="format-money"></template> MXN</p>
+      <button class="primary-button w-full" data-enlace="continuar-al-pago">Continuar al pago</button>
+      <template data-contenido="el-cobro-esta-pendiente-de-configuracion"></template>
+    </aside>
+  </div>
+</template>
+
+<article data-vista="h2" class="carrito-vehiculo" data-enlace="h2">
+  <input type="checkbox" data-enlace="input-disabled">
+  <img class="carrito-imagen" data-enlace="img-src">
+  <div class="carrito-vehiculo-info">
+    <h2 class="text-lg font-bold"><template data-contenido="marca"></template> <template data-contenido="modelo"></template></h2>
+    <p>Precio de catálogo: <template data-contenido="format-money"></template> MXN</p>
+    <template data-contenido="cobro-de-prueba"></template>
+  </div>
+  <button data-enlace="eliminar">Eliminar</button>
+</article>
+
+<p data-vista="cobro-de-prueba">Cobro de prueba: <template data-contenido="format-money"></template> MXN</p>
+
+<p data-vista="el-cobro-esta-pendiente-de-configuracion" class="mt-3">El cobro está pendiente de configuración.</p>
+
+<div data-vista="div" class="carrito-historial">
+  <p role="status" class="md:col-span-2"><template data-contenido="receipt-status"></template></p>
+  <template data-contenido="aun-no-tienes-pagos-registrados"></template>
+  <template data-contenido="lista-orders"></template>
+</div>
+
+<p data-vista="aun-no-tienes-pagos-registrados">Aún no tienes pagos registrados.</p>
+
+<article data-vista="h2-2" class="carrito-pago" data-enlace="h2">
+  <h2 class="text-lg font-bold"><template data-contenido="estado"></template></h2>
+  <p><template data-contenido="ambiente"></template> · <template data-contenido="estado-2"></template></p>
+  <ul><template data-contenido="lista-items"></template></ul>
+  <p><template data-contenido="format-money"></template> MXN · <template data-contenido="to-locale-string"></template></p>
+  <p class="text-sm">Referencia: <template data-contenido="referencia"></template></p>
+  <template data-contenido="metodo"></template>
+  <template data-contenido="confirmado"></template>
+  <template data-contenido="link"></template>
+  <template data-contenido="button"></template>
+</article>
+
+<li data-vista="li" data-enlace="li-key"><template data-contenido="marca"></template> <template data-contenido="modelo"></template></li>
+
+<p data-vista="metodo">Método: <template data-contenido="metodo-pago"></template></p>
+
+<p data-vista="confirmado">Confirmado: <template data-contenido="to-locale-string"></template></p>
+
+<button data-vista="button-2" class="primary-button mt-3 w-full" data-enlace="button-disabled"><template data-contenido="receipt-ref"></template></button>
+
+<form data-vista="form" class="p-6 space-y-4" data-enlace="form-on-submit">
+  <p><template data-contenido="real"></template> Podrás pagar con tarjeta aquí o continuar en el checkout de Mercado Pago.</p>
+  <button type="submit" class="primary-button w-full" data-enlace="button-disabled"><template data-contenido="busy"></template></button>
+</form>
