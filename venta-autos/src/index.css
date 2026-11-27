@@ -234,3 +234,24 @@ dialog[aria-label="Accesibilidad"] .dialog-heading { position: sticky; top: 0; z
   border-radius: .4rem;
   letter-spacing: .2em;
 }
+
+.campo-contrasena { position: relative; }
+.campo-contrasena > input { padding-inline-end: 3.25rem; }
+.ojo-contrasena {
+  position: absolute;
+  inset-inline-end: .25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: .35rem;
+}
+.ojo-contrasena:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+.ojo-tachado { display: none; }
+.ojo-contrasena[data-visible="true"] .ojo-tachado { display: inline; }

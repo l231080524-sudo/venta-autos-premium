@@ -12,6 +12,7 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [mostrarContrasena, setMostrarContrasena] = useState(false);
   const [telefono, setTelefono] = useState('');
   const [metodo, setMetodo] = useState('email');
   const [codigo, setCodigo] = useState('');
@@ -47,6 +48,7 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
         : { email, password, method: metodo, captcha: await captcha.resolverCaptcha() };
       const data = await enviar(endpoint, payload);
       setDesafio(data);
+      setMostrarContrasena(false);
       setCodigo('');
       setPaso('codigo');
       setEsperaReenvio(60);
@@ -103,7 +105,12 @@ export default function AuthModal({ modalAuth, setModalAuth, onLogin }) {
 
   return <VistaAuthModal {...{
     setModalAuth, esRegistro, paso, error, setError, loading,
-    setEsRegistro: nuevo => { captcha.reiniciarCaptcha(); setEsRegistro(nuevo); },
+    setEsRegistro: nuevo => {
+      captcha.reiniciarCaptcha();
+      setMostrarContrasena(false);
+      setEsRegistro(nuevo);
+    },
+    mostrarContrasena, setMostrarContrasena,
     nombre, setNombre, email, setEmail, password, setPassword, telefono,
     setTelefono, metodo, setMetodo, codigo, setCodigo, desafio, esperaReenvio,
     manejarEnvio, verificarCodigo, reenviarCodigo, volver, titulo,

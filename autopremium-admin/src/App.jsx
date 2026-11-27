@@ -46,6 +46,7 @@ export default function App() {
 
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [mostrarContrasena, setMostrarContrasena] = useState(false);
   const [challenge, setChallenge] = useState(null);
   const captcha = useCaptcha(API_URL, !challenge && !adminUser);
   const [otp, setOtp] = useState('');
@@ -90,6 +91,7 @@ export default function App() {
         });
         if (!data.requiereCodigo || !data.challengeId) throw new Error('No pudo iniciarse la verificación.');
         setChallenge(data);
+        setMostrarContrasena(false);
         setLoginPassword('');
         return;
       }
@@ -291,7 +293,7 @@ export default function App() {
     return <VistaAcceso {...{
       loginEmail, setLoginEmail, loginPassword, setLoginPassword, challenge,
       setChallenge, otp, setOtp, loginError, setLoginError, loginLoading,
-      manejarLoginSeguro, captcha,
+      manejarLoginSeguro, captcha, mostrarContrasena, setMostrarContrasena,
     }} />;
   }
 

@@ -118,7 +118,7 @@ for (const theme of ['dark', 'light']) {
     await expect(page.getByLabel('Correo electrónico')).toBeFocused();
     await page.keyboard.type(user.email);
     await page.keyboard.press('Tab');
-    await expect(page.getByLabel('Contraseña')).toBeFocused();
+    await expect(page.getByLabel('Contraseña', { exact: true })).toBeFocused();
     await page.keyboard.type('dato-de-prueba-12345');
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
@@ -395,7 +395,7 @@ test('errores de catálogo y de acceso se anuncian con texto', async ({ page }) 
   await page.getByRole('button', { name: 'Cuenta y preferencias', exact: true }).click();
   await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
   await page.getByLabel('Correo electrónico').fill(user.email);
-  await page.getByLabel('Contraseña').fill('dato-de-prueba');
+  await page.getByLabel('Contraseña', { exact: true }).fill('dato-de-prueba');
   await page.getByLabel('Escribe el código de la imagen o del audio').fill('026483');
   await page.getByRole('button', { name: 'Continuar con verificación' }).click();
   await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('Correo o contraseña incorrectos.');
@@ -449,7 +449,7 @@ test('cuenta: acceso, nombre, preferencias y cierre de sesión', async ({ page }
   await page.screenshot({ path: 'test-results/cuenta-oscuro.png' });
   await page.getByRole('button', { name: 'Iniciar sesión', exact: true }).click();
   await page.getByLabel('Correo electrónico').fill(user.email);
-  await page.getByLabel('Contraseña').fill('dato-de-prueba');
+  await page.getByLabel('Contraseña', { exact: true }).fill('dato-de-prueba');
   await page.getByLabel('Escribe el código de la imagen o del audio').fill('026483');
   await page.getByRole('button', { name: 'Continuar con verificación' }).click();
   await page.getByLabel('Código de seis dígitos').fill('123456');

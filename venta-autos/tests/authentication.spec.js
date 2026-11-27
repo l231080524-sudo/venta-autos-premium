@@ -43,7 +43,15 @@ test('inicia sesión con correo y contraseña, después valida el código de la 
   await page.getByRole('button',{name:'Cuenta y preferencias'}).click();
   await page.locator('#panel-cuenta').getByRole('button',{name:'Iniciar sesión'}).click();
   await page.locator('#auth-email').fill('cliente@example.test');
-  await page.locator('#auth-password').fill('clave-de-prueba');
+  const password = page.locator('#auth-password');
+  await password.fill('clave-de-prueba');
+  await expect(password).toHaveAttribute('type', 'password');
+  await page.getByRole('button', { name: 'Mostrar contraseña' }).press('Enter');
+  await expect(password).toHaveAttribute('type', 'text');
+  await expect(password).toHaveValue('clave-de-prueba');
+  await page.getByRole('button', { name: 'Ocultar contraseña' }).click();
+  await expect(password).toHaveAttribute('type', 'password');
+  expect(loginPayload).toBeUndefined();
   await expect(page.getByRole('radio')).toHaveCount(2);
   await expect(page.getByLabel('Enviar código al correo')).toBeChecked();
   await page.getByLabel('Usar código de la app autenticadora').check();

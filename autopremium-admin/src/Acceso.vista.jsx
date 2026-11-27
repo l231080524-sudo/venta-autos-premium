@@ -17,6 +17,8 @@ export function VistaAcceso({
   setLoginError,
   loginLoading,
   manejarLoginSeguro,
+  mostrarContrasena,
+  setMostrarContrasena,
   captcha
 }) {
   return vista("acceso-administrativo", {
@@ -44,8 +46,14 @@ export function VistaAcceso({
         "onChange": e => setLoginEmail(e.target.value)
       },
       "admin-login-password": {
+        "type": mostrarContrasena ? "text" : "password",
         "value": loginPassword,
         "onChange": e => setLoginPassword(e.target.value)
+      },
+      "ver-contrasena": {
+        "aria-label": mostrarContrasena ? "Ocultar contraseña" : "Mostrar contraseña",
+        "data-visible": mostrarContrasena,
+        "onClick": () => setMostrarContrasena(value => !value)
       }
     }, true),
     "captcha": !challenge && <CaptchaAcceso {...captcha} ocupado={loginLoading} />,

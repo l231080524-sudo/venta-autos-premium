@@ -31,6 +31,8 @@ export function VistaAuthModal({
   volver,
   titulo,
   usaAutenticador,
+  mostrarContrasena,
+  setMostrarContrasena,
   captcha
 }) {
   return <AccessibleDialog title={titulo} onClose={() => setModalAuth({
@@ -80,10 +82,16 @@ export function VistaAuthModal({
           "onChange": event => setEmail(event.target.value)
         },
         "auth-password": {
+          "type": mostrarContrasena ? "text" : "password",
           "autoComplete": esRegistro ? 'new-password' : 'current-password',
           "minLength": esRegistro ? 8 : undefined,
           "value": password,
           "onChange": event => setPassword(event.target.value)
+        },
+        "ver-contrasena": {
+          "aria-label": mostrarContrasena ? "Ocultar contraseña" : "Mostrar contraseña",
+          "data-visible": mostrarContrasena,
+          "onClick": () => setMostrarContrasena(value => !value)
         },
         "enviar": {
           "disabled": loading
